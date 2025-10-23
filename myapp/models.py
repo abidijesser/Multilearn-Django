@@ -220,3 +220,68 @@ class QuizResult(models.Model):
                 q_id, answer = pair.split(':', 1)
                 result[int(q_id)] = answer
         return result
+
+
+# ==================== GESTION DES FEEDBACKS ====================
+
+class Feedback(models.Model):
+    """
+    Modèle pour les avis des utilisateurs sur la plateforme
+    """
+    # Utilisateur connecté (optionnel pour permettre les avis anonymes)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='feedbacks', null=True, blank=True, help_text="Utilisateur connecté (optionnel)")
+    
+    # Informations de base (pour les avis anonymes)
+    username = models.CharField(max_length=150, blank=True, null=True, help_text="Nom d'utilisateur (pour avis anonymes)")
+    email = models.EmailField(blank=True, null=True, help_text="Adresse email (pour avis anonymes)")
+    
+    # Message obligatoire
+    message = models.TextField(help_text="Message de feedback")
+    
+    def clean(self):
+        """Validation personnalisée du modèle"""
+        from django.core.exceptions import ValidationError
+        
+        if self.message and len(self.message.strip()) < 3:
+            raise ValidationError('Le message doit contenir au moins 3 caractères.')
+        
+        # Vérifier qu'au moins un des deux est rempli (user OU username/email)
+        if not self.user and not (self.username and self.email):
+            raise ValidationError('Vous devez être connecté ou fournir un nom d\'utilisateur et un email.')
+    
+    def save(self, *args, **kwargs):
+        """Override save pour appliquer la validation"""
+        self.clean()
+        super().save(*args, **kwargs)
+    
+    # Date de création
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Statut (optionnel pour modération)
+    is_approved = models.BooleanField(default=True, help_text="Feedback approuvé")
+    
+    class Meta:
+        db_table = 'feedbacks'
+        verbose_name = 'Feedback'
+        verbose_name_plural = 'Feedbacks'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        if self.user:
+            return f"Feedback de {self.user.username} ({self.created_at.strftime('%d/%m/%Y')})"
+        else:
+            return f"Feedback de {self.username} ({self.created_at.strftime('%d/%m/%Y')})"
+    
+    @property
+    def display_name(self):
+        """Retourne le nom d'affichage (utilisateur connecté ou nom saisi)"""
+        if self.user:
+            return self.user.get_full_name() or self.user.username
+        return self.username
+    
+    @property
+    def display_email(self):
+        """Retourne l'email d'affichage (utilisateur connecté ou email saisi)"""
+        if self.user:
+            return self.user.email
+        return self.email

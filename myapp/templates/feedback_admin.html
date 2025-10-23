@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des avis - MultiLearn{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <!-- En-tête -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold text-primary">
+                        <i class="bi bi-gear"></i> Gestion des avis
+                    </h1>
+                    <p class="text-muted">Modération et gestion des feedbacks utilisateurs</p>
+                </div>
+                <a href="{% url 'feedback_list' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-eye"></i> Voir les avis publics
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-chat-dots text-primary fs-1"></i>
+                    <h3 class="mt-2">{{ total_feedbacks }}</h3>
+                    <p class="text-muted">Total des avis</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-check-circle text-success fs-1"></i>
+                    <h3 class="mt-2">{{ approved_feedbacks }}</h3>
+                    <p class="text-muted">Avis approuvés</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-clock text-warning fs-1"></i>
+                    <h3 class="mt-2">{{ pending_feedbacks }}</h3>
+                    <p class="text-muted">En attente</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-percent text-info fs-1"></i>
+                    <h3 class="mt-2">
+                        {% if total_feedbacks > 0 %}
+                            {{ approved_feedbacks|floatformat:0|add:0|mul:100|div:total_feedbacks|floatformat:0 }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </h3>
+                    <p class="text-muted">Taux d'approbation</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'feedback_admin' %}" 
+                           class="btn {% if not request.GET.status %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            <i class="bi bi-list"></i> Tous
+                        </a>
+                        <a href="{% url 'feedback_admin' %}?status=approved" 
+                           class="btn {% if request.GET.status == 'approved' %}btn-success{% else %}btn-outline-success{% endif %}">
+                            <i class="bi bi-check-circle"></i> Approuvés
+                        </a>
+                        <a href="{% url 'feedback_admin' %}?status=pending" 
+                           class="btn {% if request.GET.status == 'pending' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                            <i class="bi bi-clock"></i> En attente
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des feedbacks -->
+    <div class="row">
+        {% if feedbacks %}
+        {% for feedback in feedbacks %}
+        <div class="col-12 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h5 class="card-title mb-1">
+                                        <i class="bi bi-person-circle text-primary"></i>
+                                        {{ feedback.display_name }}
+                                        {% if feedback.user %}
+                                        <span class="badge bg-success ms-2">
+                                            <i class="bi bi-person-check"></i> Membre
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary ms-2">
+                                            <i class="bi bi-person"></i> Anonyme
+                                        </span>
+                                        {% endif %}
+                                    </h5>
+                                    <small class="text-muted">
+                                        <i class="bi bi-envelope"></i> {{ feedback.display_email }} • 
+                                        <i class="bi bi-calendar"></i> {{ feedback.created_at|date:"d F Y à H:i" }}
+                                    </small>
+                                </div>
+                                <div>
+                                    {% if feedback.is_approved %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Approuvé
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-warning">
+                                        <i class="bi bi-clock"></i> En attente
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <p class="card-text">{{ feedback.message|linebreaks }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-grid gap-2">
+                                {% if not feedback.is_approved %}
+                                <a href="{% url 'feedback_approve' feedback.id %}" 
+                                   class="btn btn-success btn-sm">
+                                    <i class="bi bi-check-circle"></i> Approuver
+                                </a>
+                                {% endif %}
+                                {% if feedback.is_approved %}
+                                <a href="{% url 'feedback_reject' feedback.id %}" 
+                                   class="btn btn-warning btn-sm">
+                                    <i class="bi bi-x-circle"></i> Désapprouver
+                                </a>
+                                {% else %}
+                                <a href="{% url 'feedback_reject' feedback.id %}" 
+                                   class="btn btn-danger btn-sm">
+                                    <i class="bi bi-x-circle"></i> Rejeter
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="bi bi-chat-dots text-muted" style="font-size: 4rem;"></i>
+                <h3 class="text-muted mt-3">Aucun avis trouvé</h3>
+                <p class="text-muted">
+                    {% if request.GET.status == 'approved' %}
+                        Aucun avis approuvé pour le moment.
+                    {% elif request.GET.status == 'pending' %}
+                        Aucun avis en attente de modération.
+                    {% else %}
+                        Aucun avis n'a été soumis pour le moment.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -4,7 +4,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Feedback
+from .content_filter import content_filter
+from django.http import JsonResponse
 import json
 
 # ============= Pages publiques =============
@@ -642,3 +644,218 @@ def quiz_result_detail(request, result_id):
         'is_teacher': request.user == result.quiz.course.teacher,
     }
     return render(request, 'quiz_result_detail.html', context)
+
+
+# ============= Feedback =============
+
+def feedback_list(request):
+    """Liste des feedbacks publics"""
+    feedbacks = Feedback.objects.filter(is_approved=True).order_by('-created_at')
+    
+    context = {
+        'feedbacks': feedbacks,
+    }
+    return render(request, 'feedback_list.html', context)
+
+
+def feedback_create(request):
+    """Créer un nouveau feedback"""
+    if request.method == 'POST':
+        message = request.POST.get('message')
+        
+        # Validation
+        if not message:
+            messages.error(request, 'Veuillez saisir votre message.')
+            return render(request, 'feedback_create.html', {'user': request.user})
+        
+        if len(message.strip()) < 3:
+            messages.error(request, 'Votre message doit contenir au moins 3 caractères.')
+            return render(request, 'feedback_create.html', {'user': request.user})
+        
+        # Vérifier le contenu inapproprié côté serveur
+        content_result = content_filter.check_content(message)
+        if not content_result['is_appropriate']:
+            messages.error(request, f"Contenu inapproprié détecté : {content_result['message']}")
+            return render(request, 'feedback_create.html', {'user': request.user})
+        
+        # Créer le feedback
+        if request.user.is_authenticated:
+            # Utilisateur connecté - utiliser ses informations
+            feedback = Feedback.objects.create(
+                user=request.user,
+                message=message
+            )
+            messages.success(request, 'Merci pour votre feedback ! Il sera publié après modération.')
+        else:
+            # Utilisateur anonyme - demander les informations
+            username = request.POST.get('username')
+            email = request.POST.get('email')
+            
+            if not all([username, email]):
+                messages.error(request, 'Veuillez remplir tous les champs.')
+                return render(request, 'feedback_create.html', {'user': request.user})
+            
+            feedback = Feedback.objects.create(
+                username=username,
+                email=email,
+                message=message
+            )
+            messages.success(request, 'Merci pour votre feedback ! Il sera publié après modération.')
+        
+        return redirect('feedback_list')
+    
+    return render(request, 'feedback_create.html', {'user': request.user})
+
+
+@login_required
+def feedback_admin(request):
+    """Gestion des feedbacks pour les administrateurs"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    feedbacks = Feedback.objects.all().order_by('-created_at')
+    
+    # Filtres
+    status = request.GET.get('status')
+    if status == 'approved':
+        feedbacks = feedbacks.filter(is_approved=True)
+    elif status == 'pending':
+        feedbacks = feedbacks.filter(is_approved=False)
+    
+    context = {
+        'feedbacks': feedbacks,
+        'total_feedbacks': Feedback.objects.count(),
+        'approved_feedbacks': Feedback.objects.filter(is_approved=True).count(),
+        'pending_feedbacks': Feedback.objects.filter(is_approved=False).count(),
+    }
+    return render(request, 'feedback_admin.html', context)
+
+
+@login_required
+def feedback_approve(request, feedback_id):
+    """Approuver un feedback"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    feedback = get_object_or_404(Feedback, id=feedback_id)
+    feedback.is_approved = True
+    feedback.save()
+    
+    messages.success(request, 'Feedback approuvé avec succès !')
+    return redirect('feedback_admin')
+
+
+@login_required
+def feedback_reject(request, feedback_id):
+    """Rejeter un feedback"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    feedback = get_object_or_404(Feedback, id=feedback_id)
+    feedback.is_approved = False
+    feedback.save()
+    
+    messages.success(request, 'Feedback rejeté.')
+    return redirect('feedback_admin')
+
+
+@login_required
+def feedback_edit(request, feedback_id):
+    """Modifier un feedback (propriétaire uniquement)"""
+    feedback = get_object_or_404(Feedback, id=feedback_id)
+    
+    # Vérifier que l'utilisateur est le propriétaire du feedback
+    if feedback.user != request.user:
+        messages.error(request, 'Vous ne pouvez modifier que vos propres avis.')
+        return redirect('feedback_list')
+    
+    if request.method == 'POST':
+        message = request.POST.get('message')
+        
+        # Validation
+        if not message:
+            messages.error(request, 'Veuillez saisir votre message.')
+            return render(request, 'feedback_edit.html', {'feedback': feedback})
+        
+        if len(message.strip()) < 3:
+            messages.error(request, 'Votre message doit contenir au moins 3 caractères.')
+            return render(request, 'feedback_edit.html', {'feedback': feedback})
+        
+        # Vérifier le contenu inapproprié côté serveur
+        content_result = content_filter.check_content(message)
+        if not content_result['is_appropriate']:
+            messages.error(request, f"Contenu inapproprié détecté : {content_result['message']}")
+            return render(request, 'feedback_edit.html', {'feedback': feedback})
+        
+        # Mettre à jour le feedback
+        feedback.message = message
+        feedback.save()
+        
+        messages.success(request, 'Votre avis a été modifié avec succès !')
+        return redirect('feedback_list')
+    
+    return render(request, 'feedback_edit.html', {'feedback': feedback})
+
+
+@login_required
+def feedback_delete(request, feedback_id):
+    """Supprimer un feedback (propriétaire uniquement)"""
+    feedback = get_object_or_404(Feedback, id=feedback_id)
+    
+    # Vérifier que l'utilisateur est le propriétaire du feedback
+    if feedback.user != request.user:
+        messages.error(request, 'Vous ne pouvez supprimer que vos propres avis.')
+        return redirect('feedback_list')
+    
+    if request.method == 'POST':
+        feedback.delete()
+        messages.success(request, 'Votre avis a été supprimé avec succès.')
+        return redirect('feedback_list')
+    
+    return render(request, 'feedback_delete.html', {'feedback': feedback})
+
+
+def check_content_api(request):
+    """
+    API endpoint pour vérifier le contenu en temps réel
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        text = data.get('text', '')
+        
+        if not text:
+            return JsonResponse({
+                'is_appropriate': True,
+                'score': 0,
+                'message': '',
+                'suggestions': []
+            })
+        
+        # Analyser le contenu
+        result = content_filter.check_content(text)
+        
+        # Ajouter des suggestions si nécessaire
+        suggestions = []
+        if not result['is_appropriate']:
+            suggestions = content_filter.get_suggestions(text)
+        
+        return JsonResponse({
+            'is_appropriate': result['is_appropriate'],
+            'score': result['score'],
+            'message': result['message'],
+            'issues': result['issues'],
+            'suggestions': suggestions,
+            'bad_words_found': result['bad_words_found'],
+            'suspicious_found': result['suspicious_found']
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Données JSON invalides'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

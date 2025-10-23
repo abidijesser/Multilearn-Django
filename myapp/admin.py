@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Feedback
 
 # ==================== GESTION DES UTILISATEURS ====================
 
@@ -86,5 +86,32 @@ class QuizResultAdmin(admin.ModelAdmin):
         }),
         ('Correction', {
             'fields': ('graded', 'teacher_feedback', 'graded_at')
+        }),
+    )
+
+
+# ==================== GESTION DES FEEDBACKS ====================
+
+@admin.register(Feedback)
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = ['username', 'email', 'message_short', 'is_approved', 'created_at']
+    list_filter = ['is_approved', 'created_at']
+    search_fields = ['username', 'email', 'message']
+    readonly_fields = ['created_at']
+    date_hierarchy = 'created_at'
+    
+    def message_short(self, obj):
+        return obj.message[:50] + '...' if len(obj.message) > 50 else obj.message
+    message_short.short_description = 'Message'
+    
+    fieldsets = (
+        ('Informations', {
+            'fields': ('username', 'email', 'created_at')
+        }),
+        ('Contenu', {
+            'fields': ('message',)
+        }),
+        ('Modération', {
+            'fields': ('is_approved',)
         }),
     )

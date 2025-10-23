@@ -30,4 +30,16 @@ urlpatterns = [
     path('quiz/<int:quiz_id>/submit/', views.quiz_submit, name='quiz_submit'),
     path('quiz/<int:quiz_id>/results/', views.quiz_results, name='quiz_results'),
     path('quiz/result/<int:result_id>/', views.quiz_result_detail, name='quiz_result_detail'),
+    
+    # Feedback
+    path('feedback/', views.feedback_list, name='feedback_list'),
+    path('feedback/create/', views.feedback_create, name='feedback_create'),
+    path('feedback/<int:feedback_id>/edit/', views.feedback_edit, name='feedback_edit'),
+    path('feedback/<int:feedback_id>/delete/', views.feedback_delete, name='feedback_delete'),
+    path('feedback/admin/', views.feedback_admin, name='feedback_admin'),
+    path('feedback/<int:feedback_id>/approve/', views.feedback_approve, name='feedback_approve'),
+    path('feedback/<int:feedback_id>/reject/', views.feedback_reject, name='feedback_reject'),
+    
+    # API pour détection de contenu
+    path('api/check-content/', views.check_content_api, name='check_content_api'),
 ]
