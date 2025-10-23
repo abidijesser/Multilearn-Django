@@ -1,0 +1,347 @@
+{% extends 'base.html' %}
+
+{% block title %}Créer un quiz - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'course_list' %}">Cours</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'course_detail' course.id %}">{{ course.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'quiz_list' course.id %}">Quiz</a></li>
+            <li class="breadcrumb-item active">Créer un quiz</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h3><i class="bi bi-plus-circle"></i> Créer un nouveau quiz</h3>
+                    <p class="mb-0">Pour le cours: <strong>{{ course.title }}</strong></p>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="title" class="form-label"><i class="bi bi-card-heading"></i> Titre du quiz
+                                *</label>
+                            <input type="text" class="form-control" id="title" name="title" required
+                                placeholder="Ex: Quiz de fin de module">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label"><i class="bi bi-file-text"></i> Description
+                                *</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" required
+                                placeholder="Décrivez le contenu et les objectifs de ce quiz..."></textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="quiz_type" class="form-label"><i class="bi bi-tag"></i> Type de quiz
+                                    *</label>
+                                <select class="form-select" id="quiz_type" name="quiz_type" required>
+                                    <option value="PRACTICE">Pratique (entraînement)</option>
+                                    <option value="GRADED">Noté (compte dans la note)</option>
+                                    <option value="EXAM">Examen (évaluation finale)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="duration_minutes" class="form-label"><i class="bi bi-clock"></i> Durée
+                                    (minutes) *</label>
+                                <input type="number" class="form-control" id="duration_minutes" name="duration_minutes"
+                                    min="1" max="180" value="30" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="passing_score" class="form-label"><i class="bi bi-trophy"></i> Score de
+                                    réussite (%) *</label>
+                                <input type="number" class="form-control" id="passing_score" name="passing_score"
+                                    min="0" max="100" value="70" required>
+                                <small class="text-muted">Pourcentage minimum pour réussir le quiz</small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="max_attempts" class="form-label"><i class="bi bi-arrow-repeat"></i> Nombre
+                                    de tentatives *</label>
+                                <input type="number" class="form-control" id="max_attempts" name="max_attempts" min="1"
+                                    max="10" value="3" required>
+                                <small class="text-muted">Nombre de fois qu'un étudiant peut passer le quiz</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="show_answers" name="show_answers"
+                                    checked>
+                                <label class="form-check-label" for="show_answers">
+                                    <i class="bi bi-eye"></i> Afficher les réponses après la soumission
+                                </label>
+                                <small class="d-block text-muted">Les étudiants pourront voir les bonnes réponses et les
+                                    explications</small>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Section Questions -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4><i class="bi bi-patch-question"></i> Questions du quiz</h4>
+                                <button type="button" class="btn btn-success" onclick="addQuestion()">
+                                    <i class="bi bi-plus-circle"></i> Ajouter une question
+                                </button>
+                            </div>
+
+                            <div id="questions-container">
+                                <!-- Les questions seront ajoutées ici dynamiquement -->
+                            </div>
+
+                            <div id="no-questions-message" class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> Aucune question ajoutée. Cliquez sur "Ajouter
+                                une question" pour commencer.
+                            </div>
+                        </div>
+
+                        <input type="hidden" id="questions-data" name="questions_data" value="">
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-info btn-lg">
+                                <i class="bi bi-check-circle"></i> Créer le quiz
+                            </button>
+                            <a href="{% url 'quiz_list' course.id %}" class="btn btn-secondary btn-lg">
+                                <i class="bi bi-x-circle"></i> Annuler
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let questionCounter = 0;
+    let questions = [];
+
+    function addQuestion() {
+        questionCounter++;
+        const questionId = `question-${questionCounter}`;
+
+        const questionHtml = `
+        <div class="card mb-3" id="${questionId}">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Question ${questionCounter}</h6>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeQuestion('${questionId}')">
+                    <i class="bi bi-trash"></i> Supprimer
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Type de question *</label>
+                    <select class="form-select question-type" onchange="updateQuestionType('${questionId}', this.value)" required>
+                        <option value="MCQ">Choix multiple (QCM)</option>
+                        <option value="TRUE_FALSE">Vrai/Faux</option>
+                        <option value="TEXT">Réponse textuelle</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Question *</label>
+                    <textarea class="form-control question-text" rows="2" placeholder="Posez votre question ici..." required></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Points *</label>
+                    <input type="number" class="form-control question-points" min="1" max="100" value="10" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Explication (optionnel)</label>
+                    <textarea class="form-control question-explanation" rows="2" placeholder="Expliquez la réponse correcte..."></textarea>
+                </div>
+
+                <!-- Conteneur pour les options de réponse -->
+                <div class="answer-options">
+                    <label class="form-label">Options de réponse *</label>
+                    <div class="mcq-options">
+                        <div class="input-group mb-2">
+                            <div class="input-group-text">
+                                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="0" checked>
+                            </div>
+                            <input type="text" class="form-control option-text" placeholder="Option A" required>
+                        </div>
+                        <div class="input-group mb-2">
+                            <div class="input-group-text">
+                                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="1">
+                            </div>
+                            <input type="text" class="form-control option-text" placeholder="Option B" required>
+                        </div>
+                        <div class="input-group mb-2">
+                            <div class="input-group-text">
+                                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="2">
+                            </div>
+                            <input type="text" class="form-control option-text" placeholder="Option C" required>
+                        </div>
+                        <div class="input-group mb-2">
+                            <div class="input-group-text">
+                                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="3">
+                            </div>
+                            <input type="text" class="form-control option-text" placeholder="Option D" required>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption('${questionId}')">
+                            <i class="bi bi-plus"></i> Ajouter une option
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+        document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
+        document.getElementById('no-questions-message').style.display = 'none';
+    }
+
+    function removeQuestion(questionId) {
+        document.getElementById(questionId).remove();
+        const container = document.getElementById('questions-container');
+        if (container.children.length === 0) {
+            document.getElementById('no-questions-message').style.display = 'block';
+        }
+    }
+
+    function updateQuestionType(questionId, type) {
+        const questionCard = document.getElementById(questionId);
+        const answerOptions = questionCard.querySelector('.answer-options');
+
+        if (type === 'MCQ') {
+            answerOptions.innerHTML = `
+            <label class="form-label">Options de réponse * (cochez la bonne réponse)</label>
+            <div class="mcq-options">
+                <div class="input-group mb-2">
+                    <div class="input-group-text">
+                        <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="0" checked>
+                    </div>
+                    <input type="text" class="form-control option-text" placeholder="Option A" required>
+                </div>
+                <div class="input-group mb-2">
+                    <div class="input-group-text">
+                        <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="1">
+                    </div>
+                    <input type="text" class="form-control option-text" placeholder="Option B" required>
+                </div>
+                <div class="input-group mb-2">
+                    <div class="input-group-text">
+                        <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="2">
+                    </div>
+                    <input type="text" class="form-control option-text" placeholder="Option C" required>
+                </div>
+                <div class="input-group mb-2">
+                    <div class="input-group-text">
+                        <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="3">
+                    </div>
+                    <input type="text" class="form-control option-text" placeholder="Option D" required>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption('${questionId}')">
+                    <i class="bi bi-plus"></i> Ajouter une option
+                </button>
+            </div>
+        `;
+        } else if (type === 'TRUE_FALSE') {
+            answerOptions.innerHTML = `
+            <label class="form-label">Réponse correcte *</label>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="${questionId}-correct" value="True" id="${questionId}-true" checked>
+                <label class="form-check-label" for="${questionId}-true">Vrai</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="${questionId}-correct" value="False" id="${questionId}-false">
+                <label class="form-check-label" for="${questionId}-false">Faux</label>
+            </div>
+        `;
+        } else if (type === 'TEXT') {
+            answerOptions.innerHTML = `
+            <label class="form-label">Réponse correcte *</label>
+            <input type="text" class="form-control correct-answer-text" placeholder="Entrez la réponse correcte" required>
+            <small class="text-muted">La réponse sera comparée sans tenir compte de la casse</small>
+        `;
+        }
+    }
+
+    function addOption(questionId) {
+        const questionCard = document.getElementById(questionId);
+        const mcqOptions = questionCard.querySelector('.mcq-options');
+        const currentOptions = mcqOptions.querySelectorAll('.input-group').length;
+
+        const optionHtml = `
+        <div class="input-group mb-2">
+            <div class="input-group-text">
+                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="${currentOptions}">
+            </div>
+            <input type="text" class="form-control option-text" placeholder="Option ${String.fromCharCode(65 + currentOptions)}" required>
+            <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    `;
+
+        const addButton = mcqOptions.querySelector('button');
+        addButton.insertAdjacentHTML('beforebegin', optionHtml);
+    }
+
+    // Collecter les données des questions avant la soumission
+    document.querySelector('form').addEventListener('submit', function (e) {
+        const questionsContainer = document.getElementById('questions-container');
+        const questionCards = questionsContainer.querySelectorAll('.card');
+
+        if (questionCards.length === 0) {
+            e.preventDefault();
+            alert('Veuillez ajouter au moins une question au quiz.');
+            return false;
+        }
+
+        const questionsData = [];
+
+        questionCards.forEach((card, index) => {
+            const questionType = card.querySelector('.question-type').value;
+            const questionText = card.querySelector('.question-text').value;
+            const points = card.querySelector('.question-points').value;
+            const explanation = card.querySelector('.question-explanation').value;
+
+            let correctAnswer = '';
+            let options = [];
+
+            if (questionType === 'MCQ') {
+                const optionInputs = card.querySelectorAll('.option-text');
+                options = Array.from(optionInputs).map(input => input.value);
+                const selectedRadio = card.querySelector('input[type="radio"]:checked');
+                correctAnswer = options[parseInt(selectedRadio.value)];
+            } else if (questionType === 'TRUE_FALSE') {
+                const selectedRadio = card.querySelector('input[type="radio"]:checked');
+                correctAnswer = selectedRadio.value;
+                options = ['True', 'False'];
+            } else if (questionType === 'TEXT') {
+                correctAnswer = card.querySelector('.correct-answer-text').value;
+                options = [];
+            }
+
+            questionsData.push({
+                question_type: questionType,
+                question_text: questionText,
+                points: parseInt(points),
+                correct_answer: correctAnswer,
+                options: options,
+                explanation: explanation,
+                order: index + 1
+            });
+        });
+
+        document.getElementById('questions-data').value = JSON.stringify(questionsData);
+    });
+</script>
+{% endblock %}

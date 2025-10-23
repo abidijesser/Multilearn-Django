@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}Modifier {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h3><i class="bi bi-pencil-square"></i> Modifier le cours</h3>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="title" class="form-label">
+                                <i class="bi bi-journal-text"></i> Titre du cours *
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="title" name="title"
+                                value="{{ course.title }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">
+                                <i class="bi bi-card-text"></i> Description *
+                            </label>
+                            <textarea class="form-control" id="description" name="description" rows="3"
+                                required>{{ course.description }}</textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="level" class="form-label">
+                                    <i class="bi bi-bar-chart-steps"></i> Niveau
+                                </label>
+                                <select class="form-select" id="level" name="level">
+                                    <option value="Débutant" {% if course.level == "Débutant" %}selected{% endif %}>Débutant</option>
+                                    <option value="Intermédiaire" {% if course.level == "Intermédiaire" %}selected{% endif %}>Intermédiaire</option>
+                                    <option value="Avancé" {% if course.level == "Avancé" %}selected{% endif %}>Avancé</option>
+                                    <option value="Expert" {% if course.level == "Expert" %}selected{% endif %}>Expert</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="duration_hours" class="form-label">
+                                    <i class="bi bi-clock"></i> Durée (heures)
+                                </label>
+                                <input type="number" class="form-control" id="duration_hours" name="duration_hours"
+                                    value="{{ course.duration_hours }}" min="1">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="content" class="form-label">
+                                <i class="bi bi-file-text"></i> Contenu du cours *
+                            </label>
+                            <textarea class="form-control" id="content" name="content" rows="15"
+                                required>{{ course.content }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="cover_image" class="form-label">
+                                <i class="bi bi-image"></i> Image de couverture
+                            </label>
+                            {% if course.cover_image %}
+                            <div class="mb-2">
+                                <img src="{{ course.cover_image.url }}" class="img-thumbnail" style="max-width: 300px;">
+                            </div>
+                            {% endif %}
+                            <input type="file" class="form-control" id="cover_image" name="cover_image"
+                                accept="image/*">
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="status" class="form-label">
+                                <i class="bi bi-eye"></i> Statut
+                            </label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="DRAFT" {% if course.status == "DRAFT" %}selected{% endif %}>Brouillon
+                                </option>
+                                <option value="PUBLISHED" {% if course.status == "PUBLISHED" %}selected{% endif %}>Publié
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'course_detail' course.id %}" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Annuler
+                            </a>
+                            <button type="submit" class="btn btn-warning btn-lg">
+                                <i class="bi bi-save"></i> Enregistrer les modifications
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
