@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Event, Participation  
 
 # ==================== GESTION DES UTILISATEURS ====================
 
@@ -88,3 +88,19 @@ class QuizResultAdmin(admin.ModelAdmin):
             'fields': ('graded', 'teacher_feedback', 'graded_at')
         }),
     )
+    # ==================== GESTION DES ÉVÉNEMENTS ====================
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ['title', 'start_time', 'end_time', 'location', 'is_online', 'created_by', 'created_at']
+    list_filter = ['is_online', 'start_time', 'end_time', 'created_at']
+    search_fields = ['title', 'description', 'location', 'created_by__username']
+    date_hierarchy = 'start_time'
+
+
+@admin.register(Participation)
+class ParticipationAdmin(admin.ModelAdmin):
+    list_display = ['user', 'event', 'status', 'registered_at']
+    list_filter = ['status', 'registered_at']
+    search_fields = ['user__username', 'event__title']
+    readonly_fields = ['registered_at']

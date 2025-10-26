@@ -30,4 +30,18 @@ urlpatterns = [
     path('quiz/<int:quiz_id>/submit/', views.quiz_submit, name='quiz_submit'),
     path('quiz/<int:quiz_id>/results/', views.quiz_results, name='quiz_results'),
     path('quiz/result/<int:result_id>/', views.quiz_result_detail, name='quiz_result_detail'),
+    # ==================== Événements ====================
+
+path('events/', views.event_list, name='event_list'),
+path('events/create/', views.event_create, name='event_create'),
+path('events/<int:event_id>/', views.event_detail, name='event_detail'),
+path('events/<int:event_id>/edit/', views.event_edit, name='event_edit'),
+path('events/<int:event_id>/delete/', views.event_delete, name='event_delete'),
+ path('dashboard/events/', views.events_admin, name='events_admin'),  # Changed from admin/events/
+    path('dashboard/events/create/', views.event_create, name='event_create'),
+    path('dashboard/events/<int:event_id>/edit/', views.event_edit, name='event_edit'),
+    path('dashboard/events/<int:event_id>/delete/', views.event_delete, name='event_delete'),
+# Participation
+path('events/<int:event_id>/participate/', views.participate_event, name='participate_event'),
+
 ]

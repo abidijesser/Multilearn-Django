@@ -220,3 +220,47 @@ class QuizResult(models.Model):
                 q_id, answer = pair.split(':', 1)
                 result[int(q_id)] = answer
         return result
+
+# ==================== GESTION DES ÉVÉNEMENTS ====================
+
+class Event(models.Model):
+    """
+    Modèle pour la gestion des événements (compétitions, hackathons, etc.)
+    """
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    location = models.CharField(max_length=255, blank=True, null=True)
+    is_online = models.BooleanField(default=False)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'events'
+        verbose_name = 'Événement'
+        verbose_name_plural = 'Événements'
+        ordering = ['-start_time']
+
+    def __str__(self):
+        return self.title
+
+
+class Participation(models.Model):
+    STATUS_CHOICES = [
+        ('REGISTERED', 'Inscrit'),
+        ('CONFIRMED', 'Confirmé'),
+        ('CANCELLED', 'Annulé'),
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='participations')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='participants')
+    registered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'participations'
+        unique_together = ['user', 'event']
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.event.title} ({self.get_status_display()})"
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='REGISTERED')

@@ -1,0 +1,321 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des Événements{% endblock %}
+
+{% block content %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-calendar-event"></i> Gestion des Événements</h1>
+        <button type="button" class="btn btn-success" onclick="loadCreateForm()">
+            <i class="bi bi-plus-circle"></i> Nouvel Événement
+        </button>
+    </div>
+
+    <!-- Grid des événements -->
+    <div class="row g-4">
+        {% for event in events %}
+        <div class="col-md-6 col-lg-4">
+            <div class="event-card">
+                <div class="event-card-header {% if event.is_online %}online{% else %}offline{% endif %}">
+                    <h5 class="event-title">{{ event.title }}</h5>
+                    <span class="event-type">
+                        {% if event.is_online %}
+                            <i class="bi bi-laptop"></i> En ligne
+                        {% else %}
+                            <i class="bi bi-geo-alt"></i> Présentiel
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="event-card-body">
+                    <div class="event-info">
+                        <p><i class="bi bi-clock"></i> {{ event.start_time|date:"d/m/Y H:i" }}</p>
+                        <p><i class="bi bi-clock-history"></i> {{ event.end_time|date:"d/m/Y H:i" }}</p>
+                        <p>
+                            <i class="bi bi-people-fill"></i>
+                            {{ event.participants.count }} participants
+                        </p>
+                        {% if not event.is_online %}
+                            <p><i class="bi bi-pin-map"></i> {{ event.location }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="event-actions">
+                        <button class="btn btn-info btn-sm" data-bs-toggle="tooltip" title="Voir les détails">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-warning btn-sm" onclick="editEvent('{{ event.id }}')" data-bs-toggle="tooltip" title="Modifier">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteModal{{ event.id }}" title="Supprimer">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="bi bi-calendar-x"></i> Aucun événement n'a été créé pour le moment.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal Formulaire -->
+<div class="modal fade" id="eventFormModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventFormTitle">Nouvel événement</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="eventFormContainer">
+                <!-- Le formulaire sera chargé ici via AJAX -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CSS personnalisé -->
+<style>
+.event-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.event-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.event-card-header {
+    padding: 15px;
+    color: white;
+    border-radius: 15px 15px 0 0;
+}
+
+.event-card-header.online {
+    background: linear-gradient(45deg, #2193b0, #6dd5ed);
+}
+
+.event-card-header.offline {
+    background: linear-gradient(45deg, #834d9b, #d04ed6);
+}
+
+.event-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.event-type {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.event-card-body {
+    padding: 20px;
+}
+
+.event-info {
+    margin-bottom: 15px;
+}
+
+.event-info p {
+    margin: 8px 0;
+    color: #666;
+}
+
+.event-info i {
+    margin-right: 8px;
+    color: #444;
+}
+
+.event-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.btn {
+    border-radius: 8px;
+    padding: 8px 15px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+}
+
+.modal-content {
+    border-radius: 15px;
+}
+
+.modal-header {
+    background: linear-gradient(45deg, #2193b0, #6dd5ed);
+    color: white;
+    border-radius: 15px 15px 0 0;
+}
+
+.form-control {
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    padding: 10px;
+}
+
+.form-control:focus {
+    box-shadow: 0 0 0 3px rgba(33, 147, 176, 0.2);
+    border-color: #2193b0;
+}
+</style>
+
+<script>
+// Fonction pour modifier un événement
+function editEvent(eventId) {
+    $.ajax({
+        url: `/dashboard/events/${eventId}/edit/`,
+        type: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            $('#eventFormContainer').html(response);
+            $('#eventFormTitle').text("Modifier l'événement");
+            $('#eventFormModal').modal('show');
+        },
+        error: function(xhr, status, error) {
+            console.error('Erreur:', error);
+            alert('Erreur lors du chargement de l\'événement');
+        }
+    });
+}
+
+// Fonction pour créer un nouvel événement
+function loadCreateForm() {
+    $.ajax({
+        url: "{% url 'event_create' %}",
+        type: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            $('#eventFormContainer').html(response);
+            $('#eventFormTitle').text("Nouvel événement");
+            $('#eventFormModal').modal('show');
+        },
+        error: function(xhr, status, error) {
+            console.error('Erreur:', error);
+            alert('Erreur lors du chargement du formulaire');
+        }
+    });
+}
+
+// Initialisation quand la page est prête
+$(document).ready(function() {
+    // Réinitialiser le modal quand il est fermé
+    $('#eventFormModal').on('hidden.bs.modal', function () {
+        $('#eventFormContainer').empty();
+    });
+
+    // Gérer la soumission du formulaire (délégué car le formulaire est chargé dynamiquement)
+    $(document).on('submit', '#eventForm', function(e) {
+        e.preventDefault();
+        var form = $(this);
+        var url = form.attr('action');
+        var submitBtn = form.find('button[type="submit"]');
+        
+        // Désactiver le bouton pendant l'envoi
+        submitBtn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Envoi...');
+        
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: form.serialize(),
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            success: function(response) {
+                if (response.status === 'success') {
+                    // Afficher message de succès
+                    showAlert(response.message, 'success');
+                    
+                    // Fermer le modal et recharger après un délai
+                    setTimeout(function() {
+                        $('#eventFormModal').modal('hide');
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    displayErrors(response.errors);
+                }
+            },
+            error: function(xhr, status, error) {
+                if (xhr.status === 400) {
+                    // Erreurs de validation
+                    var response = JSON.parse(xhr.responseText);
+                    displayErrors(response.errors);
+                } else {
+                    showAlert('Une erreur serveur est survenue: ' + error, 'danger');
+                }
+            },
+            complete: function() {
+                // Réactiver le bouton
+                submitBtn.prop('disabled', false);
+                var btnText = url.includes('edit') ? 'Modifier' : 'Enregistrer';
+                submitBtn.html(btnText);
+            }
+        });
+    });
+});
+
+function displayErrors(errors) {
+    // Réinitialiser les erreurs
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').empty().hide();
+    $('#formErrors').empty().hide();
+    
+    if (errors && typeof errors === 'object') {
+        for (let field in errors) {
+            let fieldElement = $(`#id_${field}`);
+            let errorElement = fieldElement.siblings('.invalid-feedback');
+            
+            if (fieldElement.length) {
+                fieldElement.addClass('is-invalid');
+                errorElement.html(errors[field].join('<br>')).show();
+            }
+        }
+    }
+}
+
+function showAlert(message, type) {
+    // Supprimer les anciennes alertes
+    $('.alert-dismissible').remove();
+    
+    // Créer une nouvelle alerte
+    var alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    var icon = type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle';
+    
+    var alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            <i class="bi ${icon}"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // Ajouter en haut du contenu principal
+    $('.container').prepend(alertHtml);
+    
+    // Auto-supprimer après 5 secondes
+    setTimeout(function() {
+        $('.alert-dismissible').alert('close');
+    }, 5000);
+}
+</script>
+{% endblock %}

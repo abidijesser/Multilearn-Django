@@ -4,8 +4,10 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult
+from django import forms
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult ,Event, Participation
 import json
+
 
 # ============= Pages publiques =============
 
@@ -642,3 +644,139 @@ def quiz_result_detail(request, result_id):
         'is_teacher': request.user == result.quiz.course.teacher,
     }
     return render(request, 'quiz_result_detail.html', context)
+
+# ============= Gestion des événements =============
+# ---------- Formulaire d'événement ----------
+class EventForm(forms.ModelForm):
+    class Meta:
+        model = Event
+        fields = ['title', 'description', 'start_time', 'end_time', 'location', 'is_online']
+        widgets = {
+            'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+        }
+
+# ---------- Vues pour les événements ----------
+@login_required
+def event_list(request):
+    events = Event.objects.all().order_by('-start_time')
+    return render(request, 'event_list.html', {'events': events})
+
+@login_required
+def event_detail(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    participants = event.participants.all()  # ManyToMany via Participation
+    return render(request, 'event_detail.html', {'event': event, 'participants': participants})
+
+from django.http import JsonResponse
+
+@login_required
+def event_create(request):
+    if request.method == 'POST':
+        form = EventForm(request.POST)
+        if form.is_valid():
+            event = form.save(commit=False)
+            event.created_by = request.user
+            event.save()
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Événement créé avec succès',
+                    'redirect': '/dashboard/events/'
+                })
+            return redirect('events_admin')
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'error',
+                    'errors': form.errors
+                })
+    else:
+        form = EventForm()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return render(request, 'event_form.html', {'form': form})
+    return render(request, 'events_admin.html', {'form': form})
+
+@login_required
+def event_edit(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    
+    # Vérifier que l'utilisateur est le créateur ou admin
+    if event.created_by != request.user and request.user.role != 'ADMIN':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'status': 'error',
+                'message': "Vous n'êtes pas autorisé(e) à modifier cet événement."
+            }, status=403)
+        messages.error(request, "Vous n'êtes pas autorisé(e) à modifier cet événement.")
+        return redirect('event_detail', event_id=event_id)
+
+    if request.method == 'POST':
+        form = EventForm(request.POST, instance=event)
+        if form.is_valid():
+            form.save()
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Événement modifié avec succès',
+                    'redirect': '/dashboard/events/'
+                })
+            
+            messages.success(request, 'Événement modifié avec succès')
+            return redirect('events_admin')
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'error',
+                    'errors': form.errors
+                })
+    
+    else:
+        # REQUÊTE GET - Retourner le formulaire pré-rempli
+        form = EventForm(instance=event)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            # Retourner le formulaire HTML pour AJAX
+            return render(request, 'event_form.html', {
+                'form': form,
+                'event': event
+            })
+        
+        return render(request, 'event_form.html', {'form': form, 'event': event})
+@login_required
+def event_delete(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+
+    # Vérifier que l'utilisateur est le créateur
+    if event.created_by != request.user:
+        messages.error(request, "Vous n'êtes pas autorisé(e) à supprimer cet événement.")
+        return redirect('event_detail', event_id=event_id)
+
+    event.delete()
+    messages.success(request, f'Événement "{event.title}" supprimé avec succès !')
+    return redirect('event_list')
+
+@login_required
+def participate_event(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    Participation.objects.get_or_create(user=request.user, event=event)
+    messages.success(request, f'Vous participez maintenant à "{event.title}" !')
+    return redirect('event_detail', event_id=event_id)
+
+
+@login_required
+def events_admin(request):
+    """Vue pour la gestion des événements dans l'interface admin"""
+    # Vérifier que l'utilisateur est admin
+    if request.user.role != 'ADMIN':
+        messages.error(request, "Vous n'avez pas accès à cette page.")
+        return redirect('dashboard')
+    
+    # Récupérer tous les événements
+    events = Event.objects.all().order_by('-start_time')
+    
+    return render(request, 'events_admin.html', {
+        'events': events
+    })
