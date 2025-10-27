@@ -1,167 +1,49 @@
-<form method="post" id="eventForm" 
-      action="{% if event %}{% url 'event_edit' event.id %}{% else %}{% url 'event_create' %}{% endif %}">
+<form id="eventForm" method="post" action="{% if event %}{% url 'event_edit' event.id %}{% else %}{% url 'event_create' %}{% endif %}">
     {% csrf_token %}
-    
-    <div id="formErrors" class="alert alert-danger" style="display: none;"></div>
+
+    <div id="formErrors"></div>
 
     <div class="mb-3">
         <label for="id_title" class="form-label">Titre *</label>
-        <input type="text" class="form-control" id="id_title" name="title" 
-               value="{{ form.title.value|default:'' }}" required>
+        <input type="text" class="form-control" id="id_title" name="title" value="{{ event.title|default:form.title.value|default:'' }}" required>
         <div class="invalid-feedback"></div>
     </div>
 
     <div class="mb-3">
         <label for="id_description" class="form-label">Description</label>
-        <textarea class="form-control" id="id_description" name="description" 
-                  rows="3">{{ form.description.value|default:'' }}</textarea>
+        <textarea class="form-control" id="id_description" name="description" rows="3">{{ event.description|default:form.description.value|default:'' }}</textarea>
         <div class="invalid-feedback"></div>
     </div>
 
     <div class="row">
         <div class="col-md-6 mb-3">
-            <label for="id_start_time" class="form-label">Date et heure de début *</label>
-            <input type="datetime-local" class="form-control" id="id_start_time" 
-                   name="start_time" 
-                   value="{% if form.start_time.value %}{{ form.start_time.value|date:'Y-m-d\TH:i' }}{% endif %}" 
-                   required>
+            <label for="id_start_time" class="form-label">Date & heure début *</label>
+            <input type="datetime-local" class="form-control" id="id_start_time" name="start_time"
+                   value="{% if event and event.start_time %}{{ event.start_time|date:'Y-m-d\\TH:i' }}{% else %}{{ form.start_time.value|default:'' }}{% endif %}" required>
             <div class="invalid-feedback"></div>
         </div>
         <div class="col-md-6 mb-3">
-            <label for="id_end_time" class="form-label">Date et heure de fin *</label>
-            <input type="datetime-local" class="form-control" id="id_end_time" 
-                   name="end_time" 
-                   value="{% if form.end_time.value %}{{ form.end_time.value|date:'Y-m-d\TH:i' }}{% endif %}" 
-                   required>
+            <label for="id_end_time" class="form-label">Date & heure fin *</label>
+            <input type="datetime-local" class="form-control" id="id_end_time" name="end_time"
+                   value="{% if event and event.end_time %}{{ event.end_time|date:'Y-m-d\\TH:i' }}{% else %}{{ form.end_time.value|default:'' }}{% endif %}" required>
             <div class="invalid-feedback"></div>
         </div>
     </div>
 
-    <div class="mb-3">
-        <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="id_is_online" 
-                   name="is_online" {% if form.is_online.value %}checked{% endif %}>
-            <label class="form-check-label" for="id_is_online">Événement en ligne</label>
-        </div>
+    <div class="mb-3 form-check">
+        <input class="form-check-input" type="checkbox" id="id_is_online" name="is_online"
+               {% if event and event.is_online %}checked{% elif form.is_online.value %}checked{% endif %}>
+        <label class="form-check-label" for="id_is_online">Événement en ligne</label>
     </div>
 
     <div class="mb-3" id="location-field">
         <label for="id_location" class="form-label">Lieu</label>
-        <input type="text" class="form-control" id="id_location" name="location" 
-               value="{{ form.location.value|default:'' }}">
+        <input type="text" class="form-control" id="id_location" name="location" value="{{ event.location|default:form.location.value|default:'' }}">
         <div class="invalid-feedback"></div>
     </div>
 
-    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+    <div class="d-flex justify-content-end gap-2">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-        <button type="submit" class="btn btn-primary">
-            {% if event %}Modifier{% else %}Enregistrer{% endif %}
-        </button>
+        <button type="submit" class="btn btn-primary">{% if event %}Modifier{% else %}Enregistrer{% endif %}</button>
     </div>
 </form>
-
-<script>
-$(document).ready(function() {
-    // Gérer l'affichage du champ lieu
-    function toggleLocationField() {
-        if ($('#id_is_online').is(':checked')) {
-            $('#location-field').hide();
-        } else {
-            $('#location-field').show();
-        }
-    }
-    
-    $('#id_is_online').change(toggleLocationField);
-    toggleLocationField(); // Initialiser au chargement
-
-    // Gérer la soumission du formulaire
-    $('#eventForm').on('submit', function(e) {
-        e.preventDefault();
-        var form = $(this);
-        var url = form.attr('action');
-        var submitBtn = form.find('button[type="submit"]');
-        
-        // Désactiver le bouton pendant l'envoi
-        submitBtn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Envoi...');
-        
-        $.ajax({
-            url: url,
-            type: 'POST',
-            data: form.serialize(),
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            success: function(response) {
-                if (response.status === 'success') {
-                    // Afficher message de succès
-                    showAlert(response.message, 'success');
-                    
-                    // Fermer le modal et recharger après un délai
-                    setTimeout(function() {
-                        $('#eventFormModal').modal('hide');
-                        window.location.reload();
-                    }, 1500);
-                } else {
-                    displayErrors(response.errors);
-                }
-            },
-            error: function(xhr, status, error) {
-                if (xhr.status === 400) {
-                    // Erreurs de validation
-                    var response = JSON.parse(xhr.responseText);
-                    displayErrors(response.errors);
-                } else {
-                    showAlert('Une erreur serveur est survenue: ' + error, 'danger');
-                }
-            },
-            complete: function() {
-                // Réactiver le bouton
-                submitBtn.prop('disabled', false).html('{% if event %}Modifier{% else %}Enregistrer{% endif %}');
-            }
-        });
-    });
-
-    function displayErrors(errors) {
-        // Réinitialiser les erreurs
-        $('.is-invalid').removeClass('is-invalid');
-        $('.invalid-feedback').empty().hide();
-        $('#formErrors').empty().hide();
-        
-        if (errors && typeof errors === 'object') {
-            for (let field in errors) {
-                let fieldElement = $(`#id_${field}`);
-                let errorElement = fieldElement.siblings('.invalid-feedback');
-                
-                if (fieldElement.length) {
-                    fieldElement.addClass('is-invalid');
-                    errorElement.html(errors[field].join('<br>')).show();
-                }
-            }
-        }
-    }
-
-    function showAlert(message, type) {
-        // Supprimer les anciennes alertes
-        $('.alert-dismissible').remove();
-        
-        // Créer une nouvelle alerte
-        var alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-        var icon = type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle';
-        
-        var alertHtml = `
-            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                <i class="bi ${icon}"></i> ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-        
-        // Ajouter en haut du contenu principal
-        $('.container').prepend(alertHtml);
-        
-        // Auto-supprimer après 5 secondes
-        setTimeout(function() {
-            $('.alert-dismissible').alert('close');
-        }, 5000);
-    }
-});
-</script>

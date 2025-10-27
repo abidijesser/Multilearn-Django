@@ -43,5 +43,6 @@ path('events/<int:event_id>/delete/', views.event_delete, name='event_delete'),
     path('dashboard/events/<int:event_id>/delete/', views.event_delete, name='event_delete'),
 # Participation
 path('events/<int:event_id>/participate/', views.participate_event, name='participate_event'),
-
+path('dashboard/events/<int:event_id>/participants/', views.event_participants, name='event_participants'),
+path('dashboard/events/<int:event_id>/participants/<int:user_id>/update/', views.update_participation_status, name='update_participation_status'),
 ]

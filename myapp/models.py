@@ -237,15 +237,30 @@ class Event(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    
+
     class Meta:
         db_table = 'events'
         verbose_name = 'Événement'
         verbose_name_plural = 'Événements'
         ordering = ['-start_time']
 
-    def __str__(self):
-        return self.title
+def __str__(self):
+    return self.title
 
+@property
+def duration(self):
+    """Calcule la durée de l'événement"""
+    if self.start_time and self.end_time:
+        duration = self.end_time - self.start_time
+        hours = duration.total_seconds() // 3600
+        minutes = (duration.total_seconds() % 3600) // 60
+        
+        if hours > 0:
+            return f"{int(hours)}h{int(minutes):02d}"
+        else:
+            return f"{int(minutes)} min"
+    return "Non définie"
 
 class Participation(models.Model):
     STATUS_CHOICES = [

@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from django import forms
+from django.http import JsonResponse
 from .models import User, Course, Enrollment, Quiz, Question, QuizResult ,Event, Participation
 import json
 
@@ -657,10 +658,33 @@ class EventForm(forms.ModelForm):
         }
 
 # ---------- Vues pour les événements ----------
-@login_required
 def event_list(request):
-    events = Event.objects.all().order_by('-start_time')
-    return render(request, 'event_list.html', {'events': events})
+    """Vue publique qui affiche tous les événements à venir"""
+    current_time = timezone.now()
+    # Ne récupérer que les événements futurs
+    events = Event.objects.filter(end_time__gte=current_time).order_by('start_time')
+    
+    # Filtres
+    event_type = request.GET.get('type')
+    search = request.GET.get('search')
+    
+    if event_type:
+        events = events.filter(is_online=(event_type == 'online'))
+    
+    if search:
+        events = events.filter(
+            Q(title__icontains=search) |
+            Q(description__icontains=search) |
+            Q(location__icontains=search)
+        )
+    
+    context = {
+        'events': events,
+        'current_filter': event_type,
+        'search_query': search,
+         'now': current_time
+    }
+    return render(request, 'events_front.html', context)
 
 @login_required
 def event_detail(request, event_id):
@@ -760,11 +784,34 @@ def event_delete(request, event_id):
 
 @login_required
 def participate_event(request, event_id):
+    """Gérer la participation à un événement"""
     event = get_object_or_404(Event, id=event_id)
-    Participation.objects.get_or_create(user=request.user, event=event)
-    messages.success(request, f'Vous participez maintenant à "{event.title}" !')
-    return redirect('event_detail', event_id=event_id)
-
+    
+    # Vérifier si l'événement n'est pas terminé
+    if event.end_time < timezone.now():
+        messages.error(request, "Cet événement est déjà terminé.")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Événement terminé'
+        })
+    
+    # Créer la participation si elle n'existe pas
+    participation, created = Participation.objects.get_or_create(
+        user=request.user,
+        event=event
+    )
+    
+    message = "Vous participez maintenant à cet événement!" if created else "Vous êtes déjà inscrit à cet événement."
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'status': 'success',
+            'message': message,
+            'participant_count': event.participants.count()
+        })
+    
+    messages.success(request, message)
+    return redirect('event_list')
 
 @login_required
 def events_admin(request):
@@ -778,5 +825,53 @@ def events_admin(request):
     events = Event.objects.all().order_by('-start_time')
     
     return render(request, 'events_admin.html', {
-        'events': events
+        'events': events,
+        'now': timezone.now()  # ← AJOUTEZ CETTE LIGNE
+
     })
+
+@login_required
+def event_participants(request, event_id):
+    """Page de gestion des participants pour un événement"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, "Accès non autorisé.")
+        return redirect('dashboard')
+    
+    event = get_object_or_404(Event, id=event_id)
+    participants = event.participants.select_related('user').all()
+    
+    # Statistiques
+    stats = {
+        'total': participants.count(),
+        'confirmed': participants.filter(status='CONFIRMED').count(),
+        'registered': participants.filter(status='REGISTERED').count(),
+        'cancelled': participants.filter(status='CANCELLED').count(),
+    }
+    
+    context = {
+        'event': event,
+        'participants': participants,
+        'stats': stats,
+    }
+    return render(request, 'event_participants.html', context)
+
+@login_required
+def update_participation_status(request, event_id, user_id):
+    """Mettre à jour le statut d'un participant"""
+    if request.user.role != 'ADMIN':
+        return JsonResponse({'error': 'Non autorisé'}, status=403)
+    
+    if request.method == 'POST':
+        participation = get_object_or_404(Participation, event_id=event_id, user_id=user_id)
+        new_status = request.POST.get('status')
+        
+        if new_status in ['REGISTERED', 'CONFIRMED', 'CANCELLED']:
+            participation.status = new_status
+            participation.save()
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'new_status': new_status})
+            
+            messages.success(request, f"Statut mis à jour pour {participation.user.username}")
+        
+        return redirect('event_participants', event_id=event_id)

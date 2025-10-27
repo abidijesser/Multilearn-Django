@@ -1,0 +1,471 @@
+{% extends 'base.html' %}
+
+{% block title %}Événements{% endblock %}
+
+{% block content %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<div class="container my-5">
+    <!-- Header Section Améliorée -->
+    <div class="text-center mb-5 py-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; color: white;">
+        <h1 class="display-4 mb-3 fw-bold">🎉 Événements à venir</h1>
+        <p class="lead mb-4" style="opacity: 0.9;">Découvrez et participez à nos événements exclusifs</p>
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <span class="badge bg-light text-dark fs-6 p-3">
+                    <i class="bi bi-calendar-check"></i> {{ events.count }} événement{{ events.count|pluralize:"s" }} disponible{{ events.count|pluralize:"s" }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search & Filter Amélioré -->
+    <div class="row mb-5">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-6">
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-light border-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="text" id="eventSearch" class="form-control border-0" 
+                                       placeholder="Rechercher un événement...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select form-select-lg border-0 bg-light" id="eventType">
+                                <option value="">Tous les types</option>
+                                <option value="online">🎯 En ligne</option>
+                                <option value="offline">🏢 Présentiel</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-secondary w-100" onclick="resetFilters()">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Events Grid Redesigné -->
+    <div class="row g-4" id="eventsContainer">
+        {% for event in events %}
+        <div class="col-md-6 col-lg-4 event-card" data-type="{% if event.is_online %}online{% else %}offline{% endif %}">
+            <div class="card event-card-item h-100 border-0">
+                <!-- En-tête visuel -->
+                <div class="event-header position-relative">
+                    {% if event.is_online %}
+                    <div class="event-image online-event">
+                        <i class="bi bi-laptop"></i>
+                        <div class="event-overlay"></div>
+                    </div>
+                    {% else %}
+                    <div class="event-image offline-event">
+                        <i class="bi bi-geo-alt"></i>
+                        <div class="event-overlay"></div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Badge type -->
+                    <div class="event-type-badge">
+                        <span class="badge {% if event.is_online %}bg-info{% else %}bg-warning{% endif %}">
+                            {% if event.is_online %}
+                            <i class="bi bi-wifi"></i> En ligne
+                            {% else %}
+                            <i class="bi bi-building"></i> Présentiel
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <!-- Compteur participants -->
+                    <div class="participants-count-badge">
+                        <span class="badge bg-dark bg-opacity-75">
+                            <i class="bi bi-people"></i> {{ event.participants.count }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-body d-flex flex-column p-4">
+                    <!-- Titre et date -->
+                    <div class="mb-3">
+                        <h5 class="card-title fw-bold text-dark mb-2">{{ event.title }}</h5>
+                        <div class="event-date">
+                            <i class="bi bi-calendar-event text-primary"></i>
+                            <small class="text-muted">
+                                {{ event.start_time|date:"d M Y" }} • {{ event.start_time|date:"H:i" }}
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    {% if event.description %}
+                    <p class="card-text text-muted mb-4 flex-grow-1">
+                        {{ event.description|truncatewords:25 }}
+                    </p>
+                    {% endif %}
+
+                    <!-- Métadonnées -->
+                    <div class="event-meta mb-4">
+                        {% if not event.is_online and event.location %}
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-geo-alt-fill text-danger me-2"></i>
+                            <small class="text-muted">{{ event.location }}</small>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-clock text-primary me-2"></i>
+                            <small class="text-muted">
+                                Durée: {{ event.duration }}
+                            </small>
+                        </div>
+
+                        <!-- Statut de l'événement -->
+                        <div class="d-flex align-items-center">
+                            <div class="status-indicator {% if event.start_time > now %}upcoming{% else %}ongoing{% endif %} me-2"></div>
+                            <small class="text-muted">
+                                {% if event.start_time > now %}
+                                <i class="bi bi-clock text-warning"></i> À venir
+                                {% else %}
+                                <i class="bi bi-play-circle text-success"></i> En cours
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Bouton de participation -->
+                    <div class="mt-auto">
+                        {% if user.is_authenticated %}
+                            {% if user in event.participants.all %}
+                                <button class="btn btn-success w-100 disabled participation-btn">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    <span class="ms-2">Déjà inscrit</span>
+                                </button>
+                            {% else %}
+                                <button class="btn btn-primary w-100 participation-btn" 
+                                        onclick="showParticipateModal('{{ event.id }}', '{{ event.title|escapejs }}')">
+                                    <i class="bi bi-person-plus-fill"></i>
+                                    <span class="ms-2">Participer</span>
+                                </button>
+                            {% endif %}
+                        {% else %}
+                            <a href="{% url 'login' %}?next={% url 'event_list' %}" class="btn btn-outline-primary w-100">
+                                <i class="bi bi-box-arrow-in-right"></i>
+                                <span class="ms-2">Connectez-vous pour participer</span>
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <!-- État vide amélioré -->
+        <div class="col-12">
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <i class="bi bi-calendar-x display-1 text-muted mb-4"></i>
+                    <h3 class="text-muted mb-3">Aucun événement prévu</h3>
+                    <p class="text-muted mb-4">Revenez plus tard pour découvrir nos prochains événements</p>
+                    {% if user.is_authenticated and user.role == 'ADMIN' %}
+                    <a href="{% url 'events_admin' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Créer un événement
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal de participation amélioré -->
+<div class="modal fade" id="participateModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white border-0">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus-fill"></i> Confirmer la participation
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-calendar-check display-4 text-primary mb-3"></i>
+                <h5 class="mb-3">Participer à l'événement</h5>
+                <p class="text-muted mb-4">"<span id="eventTitle" class="fw-bold text-dark"></span>"</p>
+                <form id="participateForm" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="event_id" id="eventId">
+                </form>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Annuler
+                </button>
+                <button type="button" class="btn btn-primary px-4" onclick="submitParticipation()">
+                    <i class="bi bi-check-circle"></i> Confirmer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Styles pour le front-office */
+.event-card-item {
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    background: white;
+}
+
+.event-card-item:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+}
+
+.event-header {
+    height: 140px;
+    overflow: hidden;
+    position: relative;
+}
+
+.event-image {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3.5rem;
+    color: white;
+    position: relative;
+}
+
+.event-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+}
+
+.online-event {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.offline-event {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.event-type-badge {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+}
+
+.participants-count-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+}
+
+.event-date {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    padding: 8px 12px;
+    border-radius: 10px;
+    display: inline-block;
+}
+
+.participation-btn {
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.participation-btn:hover:not(.disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+/* Indicateurs de statut */
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-indicator.upcoming {
+    background-color: #ffc107;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.ongoing {
+    background-color: #28a745;
+    animation: blink 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.7; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+
+/* Animations d'apparition */
+.event-card {
+    animation: fadeInUp 0.6s ease-out;
+    animation-fill-mode: both;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* État vide */
+.empty-state {
+    padding: 3rem 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .event-header {
+        height: 120px;
+    }
+    
+    .event-image {
+        font-size: 2.5rem;
+    }
+    
+    .card-body {
+        padding: 1.5rem !important;
+    }
+}
+
+/* Filtres */
+.event-card.hidden {
+    display: none;
+}
+
+.badge {
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+</style>
+
+<script>
+// Animation d'apparition en cascade
+function animateEvents() {
+    $('.event-card').each(function(index) {
+        $(this).css({
+            'opacity': '0',
+            'transform': 'translateY(30px)'
+        });
+        
+        setTimeout(() => {
+            $(this).css({
+                'transition': 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                'opacity': '1',
+                'transform': 'translateY(0)'
+            });
+        }, index * 150);
+    });
+}
+
+$(document).ready(function() {
+    animateEvents();
+    
+    // Recherche et filtrage amélioré
+    $('#eventSearch, #eventType').on('input change', filterEvents);
+
+    function filterEvents() {
+        const searchTerm = $('#eventSearch').val().toLowerCase();
+        const selectedType = $('#eventType').val();
+
+        $('.event-card').each(function() {
+            const card = $(this);
+            const title = card.find('.card-title').text().toLowerCase();
+            const description = card.find('.card-text').text().toLowerCase();
+            const location = card.find('.event-meta').text().toLowerCase();
+            const type = card.data('type');
+
+            const matchesSearch = title.includes(searchTerm) || 
+                                description.includes(searchTerm) || 
+                                location.includes(searchTerm);
+            const matchesType = !selectedType || type === selectedType;
+
+            if (matchesSearch && matchesType) {
+                card.removeClass('hidden').css('display', 'block');
+            } else {
+                card.addClass('hidden').css('display', 'none');
+            }
+        });
+    }
+});
+
+function resetFilters() {
+    $('#eventSearch').val('');
+    $('#eventType').val('');
+    $('.event-card').removeClass('hidden').css('display', 'block');
+    animateEvents();
+}
+
+function showParticipateModal(eventId, eventTitle) {
+    $('#eventTitle').text(eventTitle);
+    $('#eventId').val(eventId);
+    
+    const modal = new bootstrap.Modal(document.getElementById('participateModal'));
+    modal.show();
+}
+
+function submitParticipation() {
+    const eventId = $('#eventId').val();
+    const form = $('#participateForm');
+    const submitBtn = $('#participateModal .btn-primary');
+    
+    // Animation de chargement
+    submitBtn.prop('disabled', true).html(`
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Inscription...
+    `);
+    
+    $.ajax({
+        url: `/events/${eventId}/participate/`,
+        type: 'POST',
+        data: form.serialize(),
+        success: function(response) {
+            // Fermer le modal et recharger
+            bootstrap.Modal.getInstance(document.getElementById('participateModal')).hide();
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        },
+        error: function(xhr) {
+            alert('Une erreur est survenue. Veuillez réessayer.');
+            submitBtn.prop('disabled', false).html(`
+                <i class="bi bi-check-circle"></i> Confirmer
+            `);
+        }
+    });
+}
+</script>
+{% endblock %}
