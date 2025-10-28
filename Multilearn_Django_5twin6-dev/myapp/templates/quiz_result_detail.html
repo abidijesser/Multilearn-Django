@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block title %}Résultat - {{ result.quiz.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="card">
+        <div class="card-header {% if result.passed %}bg-success{% else %}bg-danger{% endif %} text-white">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h3><i class="bi bi-clipboard-check"></i> {{ result.quiz.title }}</h3>
+                    <p class="mb-0">Résultat du quiz</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <h1 class="display-4 mb-0">{{ result.score|floatformat:1 }}%</h1>
+                    {% if result.passed %}
+                    <h5><i class="bi bi-check-circle-fill"></i> Réussi</h5>
+                    {% else %}
+                    <h5><i class="bi bi-x-circle-fill"></i> Échoué</h5>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <p><i class="bi bi-person"></i> <strong>Étudiant:</strong> {{ result.student.get_full_name }}</p>
+                    <p><i class="bi bi-calendar"></i> <strong>Date:</strong> {{ result.submitted_at|date:"d/m/Y à H:i"
+                        }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><i class="bi bi-trophy"></i> <strong>Score requis:</strong> {{ result.quiz.passing_score }}%</p>
+                    <p><i class="bi bi-star"></i> <strong>Votre score:</strong> {{ result.score|floatformat:1 }}%</p>
+                </div>
+            </div>
+
+            {% if result.passed %}
+            <div class="alert alert-success">
+                <h5><i class="bi bi-check-circle-fill"></i> Félicitations !</h5>
+                <p class="mb-0">Vous avez réussi ce quiz avec un score de {{ result.score|floatformat:1 }}%</p>
+            </div>
+            {% else %}
+            <div class="alert alert-danger">
+                <h5><i class="bi bi-x-circle-fill"></i> Quiz échoué</h5>
+                <p class="mb-0">Score obtenu: {{ result.score|floatformat:1 }}% (minimum requis: {{
+                    result.quiz.passing_score }}%)</p>
+            </div>
+            {% endif %}
+
+            {% if result.teacher_feedback %}
+            <div class="alert alert-info">
+                <h5><i class="bi bi-chat-left-text"></i> Feedback de l'enseignant</h5>
+                <p class="mb-0">{{ result.teacher_feedback }}</p>
+            </div>
+            {% endif %}
+
+            <hr>
+
+            <h4><i class="bi bi-list-check"></i> Détails des réponses</h4>
+
+            {% for q_data in questions_data %}
+            <div class="card mb-3">
+                <div
+                    class="card-header {% if q_data.is_correct %}bg-success{% else %}bg-danger{% endif %} bg-opacity-10">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Question {{ forloop.counter }}</h6>
+                        {% if q_data.is_correct %}
+                        <span class="badge bg-success"><i class="bi bi-check"></i> Correct</span>
+                        {% else %}
+                        <span class="badge bg-danger"><i class="bi bi-x"></i> Incorrect</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="lead">{{ q_data.question.question_text }}</p>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Votre réponse:</strong></p>
+                            <p class="{% if q_data.is_correct %}text-success{% else %}text-danger{% endif %}">
+                                <i class="bi bi-arrow-right-circle"></i> {{ q_data.student_answer_text }}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Réponse correcte:</strong></p>
+                            <p class="text-success">
+                                <i class="bi bi-check-circle"></i> {{ q_data.correct_answer_text }}
+                            </p>
+                        </div>
+                    </div>
+
+                    {% if q_data.question.explanation %}
+                    <div class="alert alert-info mt-3">
+                        <strong><i class="bi bi-lightbulb"></i> Explication:</strong>
+                        <p class="mb-0 mt-2">{{ q_data.question.explanation }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if is_teacher %}
+            <hr>
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-chat-left-text"></i> Ajouter un feedback</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <textarea class="form-control" name="feedback" rows="4"
+                                placeholder="Votre feedback pour l'étudiant...">{{ result.teacher_feedback }}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Enregistrer le feedback
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="mt-4 d-flex justify-content-between">
+                <a href="{% url 'quiz_detail' result.quiz.id %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Retour au quiz
+                </a>
+                <a href="{% url 'course_detail' result.quiz.course.id %}" class="btn btn-primary">
+                    <i class="bi bi-book"></i> Retour au cours
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Supprimer mon avis - MultiLearn{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <!-- En-tête -->
+            <div class="text-center mb-5">
+                <h1 class="display-4 fw-bold text-danger">
+                    <i class="bi bi-trash"></i> Supprimer mon avis
+                </h1>
+                <p class="lead text-muted">
+                    Êtes-vous sûr de vouloir supprimer votre avis ?
+                </p>
+            </div>
+
+            <!-- Confirmation -->
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> Confirmation de suppression
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Attention :</strong> Cette action est irréversible. Votre avis sera définitivement supprimé.
+                    </div>
+
+                    <!-- Aperçu de l'avis à supprimer -->
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-person-circle text-primary"></i>
+                                {{ feedback.display_name }}
+                                <small class="text-muted ms-2">
+                                    <i class="bi bi-calendar"></i>
+                                    {{ feedback.created_at|date:"d F Y à H:i" }}
+                                </small>
+                            </h6>
+                            <p class="card-text">{{ feedback.message|linebreaks }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Formulaire de confirmation -->
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'feedback_list' %}" class="btn btn-outline-secondary me-md-2">
+                                <i class="bi bi-arrow-left"></i> Annuler
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash"></i> Oui, supprimer définitivement
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Informations supplémentaires -->
+            <div class="mt-4">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-info-circle"></i> Que se passe-t-il après la suppression ?
+                        </h5>
+                        <ul class="mb-0">
+                            <li>Votre avis sera définitivement supprimé de la plateforme</li>
+                            <li>Il ne sera plus visible par les autres utilisateurs</li>
+                            <li>Vous pourrez toujours laisser un nouvel avis si vous le souhaitez</li>
+                            <li>Cette action ne peut pas être annulée</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
