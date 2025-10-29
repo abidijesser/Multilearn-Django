@@ -2,6 +2,27 @@
 
 {% block title %}Mon Profil{% endblock %}
 
+{% block extra_css %}
+<style>
+    .ai-recommendations-card {
+        border: 2px solid transparent;
+        background: linear-gradient(white, white) padding-box,
+                    linear-gradient(135deg, #667eea 0%, #764ba2 100%) border-box;
+        border-radius: 10px;
+    }
+    
+    .ai-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.8; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container my-5">
     <div class="row">
@@ -80,8 +101,11 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="bio" class="form-label">Biographie</label>
-                            <textarea class="form-control" id="bio" name="bio" rows="4">{{ user.bio }}</textarea>
+                            <label for="bio" class="form-label">
+                                <i class="bi bi-chat-text"></i> Biographie 
+                                <small class="text-muted">(L'IA analysera votre bio pour vous recommander des cours)</small>
+                            </label>
+                            <textarea class="form-control" id="bio" name="bio" rows="4" placeholder="Parlez de vos compétences, intérêts et objectifs d'apprentissage...">{{ user.bio }}</textarea>
                         </div>
 
                         <div class="mb-3">
@@ -96,6 +120,65 @@
                     </form>
                 </div>
             </div>
+
+            {% if ai_recommendations %}
+            <div class="card mt-3">
+                <div class="card-header text-white" style="background: linear-gradient(135deg, #4285f4 0%, #ea4335 50%, #fbbc04 100%);">
+                    <h5>
+                        <i class="bi bi-stars"></i> 
+                        Recommandations Gemini AI
+                        <span class="badge bg-light text-dark ms-2">Propulsé par Google</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if user.role == 'STUDENT' %}
+                    <p class="text-muted mb-3">
+                        <i class="bi bi-lightbulb-fill text-warning"></i> 
+                        Gemini AI a analysé votre profil et vous recommande ces cours :
+                    </p>
+                    {% for course in ai_recommendations %}
+                    <div class="card mb-3 border-primary">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-bookmark-star text-primary"></i>
+                                        {{ course.title }}
+                                    </h6>
+                                    <p class="text-muted small mb-2">{{ course.description|truncatewords:20 }}</p>
+                                    <span class="badge bg-info me-1">{{ course.level }}</span>
+                                    <span class="badge bg-secondary"><i class="bi bi-clock"></i> {{ course.duration_hours }}h</span>
+                                </div>
+                                <a href="{% url 'course_detail' course.id %}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> Voir
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% elif user.role == 'TEACHER' %}
+                    <p class="text-muted mb-3">
+                        <i class="bi bi-lightbulb-fill text-warning"></i> 
+                        Gemini AI suggère ces cours à créer selon votre expertise :
+                    </p>
+                    {% for suggestion in ai_recommendations %}
+                    <div class="alert alert-light border-start border-primary border-4 mb-2">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-star-fill text-warning me-2"></i>
+                            <div>
+                                <strong>{{ suggestion.title }}</strong>
+                                <small class="text-muted d-block">Domaine: {{ suggestion.domain }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <a href="{% url 'course_create' %}" class="btn btn-primary mt-2">
+                        <i class="bi bi-plus-circle"></i> Créer un nouveau cours
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
 
             {% if user.role == 'STUDENT' and enrollments %}
             <div class="card mt-3">
@@ -135,8 +218,7 @@
                         <div>
                             <h6>{{ course.title }}</h6>
                             <small class="text-muted">
-                                <i class="bi bi-people"></i> {{ course.student_count }} étudiant{{
-                                course.student_count|pluralize }}
+                                <i class="bi bi-people"></i> {{ course.student_count }} étudiant{{ course.student_count|pluralize }}
                             </small>
                         </div>
                         <a href="{% url 'course_detail' course.id %}" class="btn btn-sm btn-primary">
