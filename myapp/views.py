@@ -10,6 +10,115 @@ from django.http import JsonResponse
 import json
 from django.shortcuts import render
 from .generate_quiz import generate_quiz_from_text
+import re
+import google.generativeai as genai
+
+# Configuration Gemini
+genai.configure(api_key='AIzaSyBFo_IkHcOzYFtLlzZKRcT7frmdcuvwB38')
+gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+
+# ============= Fonctions IA pour recommandations =============
+
+def analyze_bio_and_recommend_courses(user):
+    """
+    Analyse la biographie avec Gemini AI et recommande des cours
+    """
+    if not user.bio:
+        return []
+    
+    try:
+        if user.role == 'STUDENT':
+            # Récupérer TOUS les cours disponibles
+            enrolled_ids = list(user.enrollments.values_list('course_id', flat=True))
+            all_courses = Course.objects.filter(status='PUBLISHED').exclude(id__in=enrolled_ids)
+            
+            if not all_courses.exists():
+                return []
+            
+            # Créer la liste complète des cours avec ID et titre uniquement
+            courses_list = "\n".join([
+                f"{c.id}. {c.title}"
+                for c in all_courses
+            ])
+            
+            # Prompt simplifié pour Gemini
+            prompt = f"""Tu es un conseiller d'orientation. Analyse cette biographie d'étudiant et recommande les 5 cours les PLUS compatibles parmi TOUS les cours disponibles.
+
+BIOGRAPHIE DE L'ÉTUDIANT:
+{user.bio}
+
+LISTE COMPLÈTE DES COURS DISPONIBLES:
+{courses_list}
+
+INSTRUCTIONS:
+- Analyse la biographie pour comprendre les compétences, intérêts et objectifs de l'étudiant
+- Compare avec TOUS les titres de cours
+- Recommande les 5 cours les plus pertinents et compatibles
+- Réponds UNIQUEMENT avec les numéros des cours, séparés par des virgules
+- Format de réponse: 3,7,12,5,19 (juste les numéros, rien d'autre)"""
+            
+            response = gemini_model.generate_content(prompt)
+            
+            # Extraire les IDs des cours recommandés
+            response_text = response.text.strip()
+            course_ids = []
+            for item in response_text.replace(' ', '').split(','):
+                if item.isdigit():
+                    course_ids.append(int(item))
+            
+            # Récupérer les cours recommandés
+            recommended = []
+            for cid in course_ids[:5]:
+                try:
+                    course = Course.objects.get(id=cid, status='PUBLISHED')
+                    if course.id not in enrolled_ids:
+                        recommended.append(course)
+                except Course.DoesNotExist:
+                    continue
+            
+            return recommended
+        
+        elif user.role == 'TEACHER':
+            # Suggestions pour enseignants
+            existing_titles = ", ".join([c.title for c in user.courses_taught.all()])
+            
+            prompt = f"""Tu es un conseiller pédagogique. Analyse cette biographie d'enseignant et suggère 5 cours qu'il pourrait créer.
+
+BIOGRAPHIE DE L'ENSEIGNANT:
+{user.bio}
+
+COURS DÉJÀ CRÉÉS:
+{existing_titles if existing_titles else "Aucun cours créé pour le moment"}
+
+INSTRUCTIONS:
+- Analyse les compétences et expertises de l'enseignant
+- Suggère 5 nouveaux cours différents de ceux déjà créés
+- Format: Titre du cours | Domaine
+- Exemple:
+Python Avancé | Programmation
+Web Development avec React | Développement Web
+Data Science Pratique | Analyse de données"""
+            
+            response = gemini_model.generate_content(prompt)
+            suggestions = []
+            for line in response.text.strip().split('\n'):
+                line = line.strip()
+                if '|' in line:
+                    parts = line.split('|')
+                    if len(parts) >= 2:
+                        suggestions.append({
+                            'title': parts[0].strip(),
+                            'domain': parts[1].strip(),
+                            'suggestion': parts[0].strip()
+                        })
+            
+            return suggestions[:5]
+    
+    except Exception as e:
+        print(f"Erreur Gemini: {e}")
+        return []
+    
+    return []
 
 # ============= Pages publiques =============
 
@@ -130,6 +239,11 @@ def profile_view(request):
     
     # Statistiques selon le rôle
     context = {'user': user}
+    
+    # Recommandations IA basées sur la biographie
+    if user.bio:
+        ai_recommendations = analyze_bio_and_recommend_courses(user)
+        context['ai_recommendations'] = ai_recommendations
     
     if user.role == 'STUDENT':
         context['enrollments'] = user.enrollments.select_related('course').all()
