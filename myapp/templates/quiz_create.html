@@ -4,6 +4,7 @@
 
 {% block content %}
 <div class="container my-5">
+    <!-- Breadcrumb -->
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'course_list' %}">Cours</a></li>
@@ -13,45 +14,50 @@
         </ol>
     </nav>
 
-    <div class="row">
+
+    <!-- Formulaire de création de quiz -->
         <div class="col-lg-8 mx-auto">
-            <div class="card">
                 <div class="card-header bg-info text-white">
                     <h3><i class="bi bi-plus-circle"></i> Créer un nouveau quiz</h3>
                     <p class="mb-0">Pour le cours: <strong>{{ course.title }}</strong></p>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
 
+                        <!-- Infos générales -->
                         <div class="mb-3">
-                            <label for="title" class="form-label"><i class="bi bi-card-heading"></i> Titre du quiz
-                                *</label>
+                            <label for="title" class="form-label"><i class="bi bi-card-heading"></i> Titre du quiz *</label>
                             <input type="text" class="form-control" id="title" name="title" required
                                 placeholder="Ex: Quiz de fin de module">
                         </div>
 
                         <div class="mb-3">
-                            <label for="description" class="form-label"><i class="bi bi-file-text"></i> Description
-                                *</label>
+                            <label for="description" class="form-label"><i class="bi bi-file-text"></i> Description *</label>
                             <textarea class="form-control" id="description" name="description" rows="3" required
                                 placeholder="Décrivez le contenu et les objectifs de ce quiz..."></textarea>
                         </div>
+<div class="col-md-6 mb-3">
+    <label for="quiz_level" class="form-label"><i class="bi bi-bar-chart"></i> Niveau *</label>
+<select name="niveau" id="niveau">
+  <option value="Débutant">Débutant</option>
+  <option value="Intermédiaire">Intermédiaire</option>
+  <option value="Avancé">Avancé</option>
+  <option value="Expert">Expert</option>
+</select>
+</div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="quiz_type" class="form-label"><i class="bi bi-tag"></i> Type de quiz
-                                    *</label>
+                                <label for="quiz_type" class="form-label"><i class="bi bi-tag"></i> Type de quiz *</label>
                                 <select class="form-select" id="quiz_type" name="quiz_type" required>
                                     <option value="PRACTICE">Pratique (entraînement)</option>
                                     <option value="GRADED">Noté (compte dans la note)</option>
                                     <option value="EXAM">Examen (évaluation finale)</option>
                                 </select>
                             </div>
-
                             <div class="col-md-6 mb-3">
-                                <label for="duration_minutes" class="form-label"><i class="bi bi-clock"></i> Durée
-                                    (minutes) *</label>
+                                <label for="duration_minutes" class="form-label"><i class="bi bi-clock"></i> Durée (minutes) *</label>
                                 <input type="number" class="form-control" id="duration_minutes" name="duration_minutes"
                                     min="1" max="180" value="30" required>
                             </div>
@@ -59,16 +65,13 @@
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="passing_score" class="form-label"><i class="bi bi-trophy"></i> Score de
-                                    réussite (%) *</label>
+                                <label for="passing_score" class="form-label"><i class="bi bi-trophy"></i> Score de réussite (%) *</label>
                                 <input type="number" class="form-control" id="passing_score" name="passing_score"
                                     min="0" max="100" value="70" required>
                                 <small class="text-muted">Pourcentage minimum pour réussir le quiz</small>
                             </div>
-
                             <div class="col-md-6 mb-3">
-                                <label for="max_attempts" class="form-label"><i class="bi bi-arrow-repeat"></i> Nombre
-                                    de tentatives *</label>
+                                <label for="max_attempts" class="form-label"><i class="bi bi-arrow-repeat"></i> Nombre de tentatives *</label>
                                 <input type="number" class="form-control" id="max_attempts" name="max_attempts" min="1"
                                     max="10" value="3" required>
                                 <small class="text-muted">Nombre de fois qu'un étudiant peut passer le quiz</small>
@@ -77,34 +80,47 @@
 
                         <div class="mb-4">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="show_answers" name="show_answers"
-                                    checked>
+                                <input class="form-check-input" type="checkbox" id="show_answers" name="show_answers" checked>
                                 <label class="form-check-label" for="show_answers">
                                     <i class="bi bi-eye"></i> Afficher les réponses après la soumission
                                 </label>
-                                <small class="d-block text-muted">Les étudiants pourront voir les bonnes réponses et les
-                                    explications</small>
+                                <small class="d-block text-muted">Les étudiants pourront voir les bonnes réponses et les explications</small>
                             </div>
                         </div>
 
                         <hr class="my-4">
 
-                        <!-- Section Questions -->
+                        <!-- Génération IA -->
+                        <div class="mb-4 p-3 border rounded bg-light">
+                            <h5><i class="bi bi-robot"></i> Génération automatique de quiz</h5>
+
+                            <div class="mb-3">
+                                <label for="ai_course_text" class="form-label">Texte du cours :</label>
+                                <textarea id="ai_course_text" class="form-control" rows="2" placeholder="Collez ici le texte ou résumé du cours"></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="course_pdf" class="form-label">Ou uploader un PDF :</label>
+                                <input type="file" id="course_pdf" class="form-control" accept=".pdf">
+                            </div>
+
+                            <button type="button" class="btn btn-primary" onclick="generateQuizAI()">
+                                <i class="bi bi-robot"></i> Générer le quiz
+                            </button>
+                        </div>
+
+                        <!-- Questions générées -->
                         <div class="mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h4><i class="bi bi-patch-question"></i> Questions du quiz</h4>
-                                <button type="button" class="btn btn-success" onclick="addQuestion()">
-                                    <i class="bi bi-plus-circle"></i> Ajouter une question
+                                <button type="button" class="btn btn-primary" onclick="generateQuestionsAI()">
+                                    <i class="bi bi-robot"></i> 
                                 </button>
                             </div>
 
-                            <div id="questions-container">
-                                <!-- Les questions seront ajoutées ici dynamiquement -->
-                            </div>
-
+                            <div id="questions-container"></div>
                             <div id="no-questions-message" class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle"></i> Aucune question ajoutée. Cliquez sur "Ajouter
-                                une question" pour commencer.
+                                <i class="bi bi-exclamation-triangle"></i> Aucune question ajoutée. Cliquez sur "Générer des questions" pour commencer.
                             </div>
                         </div>
 
@@ -126,222 +142,139 @@
 </div>
 
 <script>
-    let questionCounter = 0;
-    let questions = [];
+let questionCounter = 0;
 
-    function addQuestion() {
-        questionCounter++;
-        const questionId = `question-${questionCounter}`;
+function addGeneratedQuestion(q) {
+    questionCounter++;
+    const questionId = `question-${questionCounter}`;
+    const optionsHtml = (q.options || []).map((opt, idx) => `
+        <div class="input-group mb-2">
+            <div class="input-group-text">
+                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="${idx}" ${opt === q.correct_answer ? 'checked' : ''}>
+            </div>
+            <input type="text" class="form-control option-text" value="${opt}" required>
+        </div>
+    `).join('');
 
-        const questionHtml = `
+    const questionHtml = `
         <div class="card mb-3" id="${questionId}">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Question ${questionCounter}</h6>
-                <button type="button" class="btn btn-sm btn-danger" onclick="removeQuestion('${questionId}')">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6>Question ${questionCounter}</h6>
+                <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.card').remove()">
                     <i class="bi bi-trash"></i> Supprimer
                 </button>
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <label class="form-label">Type de question *</label>
-                    <select class="form-select question-type" onchange="updateQuestionType('${questionId}', this.value)" required>
-                        <option value="MCQ">Choix multiple (QCM)</option>
-                        <option value="TRUE_FALSE">Vrai/Faux</option>
-                        <option value="TEXT">Réponse textuelle</option>
-                    </select>
+                    <label>Question *</label>
+                    <textarea class="form-control question-text" rows="2" required>${q.question_text}</textarea>
                 </div>
-
                 <div class="mb-3">
-                    <label class="form-label">Question *</label>
-                    <textarea class="form-control question-text" rows="2" placeholder="Posez votre question ici..." required></textarea>
+                    <label>Points *</label>
+                    <input type="number" class="form-control question-points" value="${q.points || 10}" required>
                 </div>
-
                 <div class="mb-3">
-                    <label class="form-label">Points *</label>
-                    <input type="number" class="form-control question-points" min="1" max="100" value="10" required>
+                    <label>Explication</label>
+                    <textarea class="form-control question-explanation" rows="2">${q.explanation || ''}</textarea>
                 </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Explication (optionnel)</label>
-                    <textarea class="form-control question-explanation" rows="2" placeholder="Expliquez la réponse correcte..."></textarea>
-                </div>
-
-                <!-- Conteneur pour les options de réponse -->
                 <div class="answer-options">
-                    <label class="form-label">Options de réponse *</label>
-                    <div class="mcq-options">
-                        <div class="input-group mb-2">
-                            <div class="input-group-text">
-                                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="0" checked>
-                            </div>
-                            <input type="text" class="form-control option-text" placeholder="Option A" required>
-                        </div>
-                        <div class="input-group mb-2">
-                            <div class="input-group-text">
-                                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="1">
-                            </div>
-                            <input type="text" class="form-control option-text" placeholder="Option B" required>
-                        </div>
-                        <div class="input-group mb-2">
-                            <div class="input-group-text">
-                                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="2">
-                            </div>
-                            <input type="text" class="form-control option-text" placeholder="Option C" required>
-                        </div>
-                        <div class="input-group mb-2">
-                            <div class="input-group-text">
-                                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="3">
-                            </div>
-                            <input type="text" class="form-control option-text" placeholder="Option D" required>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption('${questionId}')">
-                            <i class="bi bi-plus"></i> Ajouter une option
-                        </button>
-                    </div>
+                    ${optionsHtml || `<input type="text" class="form-control correct-answer-text" value="${q.correct_answer || ''}" required>`}
                 </div>
             </div>
         </div>
     `;
+    document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
+    document.getElementById('no-questions-message').style.display = 'none';
+}
 
-        document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
-        document.getElementById('no-questions-message').style.display = 'none';
-    }
+async function generateQuestionsAI() {
+    const courseText = document.getElementById('description').value.trim();
+    if (!courseText) return alert("Veuillez entrer une description du cours.");
 
-    function removeQuestion(questionId) {
-        document.getElementById(questionId).remove();
-        const container = document.getElementById('questions-container');
-        if (container.children.length === 0) {
-            document.getElementById('no-questions-message').style.display = 'block';
-        }
-    }
+    const button = event.target;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Génération en cours...';
 
-    function updateQuestionType(questionId, type) {
-        const questionCard = document.getElementById(questionId);
-        const answerOptions = questionCard.querySelector('.answer-options');
-
-        if (type === 'MCQ') {
-            answerOptions.innerHTML = `
-            <label class="form-label">Options de réponse * (cochez la bonne réponse)</label>
-            <div class="mcq-options">
-                <div class="input-group mb-2">
-                    <div class="input-group-text">
-                        <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="0" checked>
-                    </div>
-                    <input type="text" class="form-control option-text" placeholder="Option A" required>
-                </div>
-                <div class="input-group mb-2">
-                    <div class="input-group-text">
-                        <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="1">
-                    </div>
-                    <input type="text" class="form-control option-text" placeholder="Option B" required>
-                </div>
-                <div class="input-group mb-2">
-                    <div class="input-group-text">
-                        <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="2">
-                    </div>
-                    <input type="text" class="form-control option-text" placeholder="Option C" required>
-                </div>
-                <div class="input-group mb-2">
-                    <div class="input-group-text">
-                        <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="3">
-                    </div>
-                    <input type="text" class="form-control option-text" placeholder="Option D" required>
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption('${questionId}')">
-                    <i class="bi bi-plus"></i> Ajouter une option
-                </button>
-            </div>
-        `;
-        } else if (type === 'TRUE_FALSE') {
-            answerOptions.innerHTML = `
-            <label class="form-label">Réponse correcte *</label>
-            <div class="form-check">
-                <input class="form-check-input" type="radio" name="${questionId}-correct" value="True" id="${questionId}-true" checked>
-                <label class="form-check-label" for="${questionId}-true">Vrai</label>
-            </div>
-            <div class="form-check">
-                <input class="form-check-input" type="radio" name="${questionId}-correct" value="False" id="${questionId}-false">
-                <label class="form-check-label" for="${questionId}-false">Faux</label>
-            </div>
-        `;
-        } else if (type === 'TEXT') {
-            answerOptions.innerHTML = `
-            <label class="form-label">Réponse correcte *</label>
-            <input type="text" class="form-control correct-answer-text" placeholder="Entrez la réponse correcte" required>
-            <small class="text-muted">La réponse sera comparée sans tenir compte de la casse</small>
-        `;
-        }
-    }
-
-    function addOption(questionId) {
-        const questionCard = document.getElementById(questionId);
-        const mcqOptions = questionCard.querySelector('.mcq-options');
-        const currentOptions = mcqOptions.querySelectorAll('.input-group').length;
-
-        const optionHtml = `
-        <div class="input-group mb-2">
-            <div class="input-group-text">
-                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="${currentOptions}">
-            </div>
-            <input type="text" class="form-control option-text" placeholder="Option ${String.fromCharCode(65 + currentOptions)}" required>
-            <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
-                <i class="bi bi-x"></i>
-            </button>
-        </div>
-    `;
-
-        const addButton = mcqOptions.querySelector('button');
-        addButton.insertAdjacentHTML('beforebegin', optionHtml);
-    }
-
-    // Collecter les données des questions avant la soumission
-    document.querySelector('form').addEventListener('submit', function (e) {
-        const questionsContainer = document.getElementById('questions-container');
-        const questionCards = questionsContainer.querySelectorAll('.card');
-
-        if (questionCards.length === 0) {
-            e.preventDefault();
-            alert('Veuillez ajouter au moins une question au quiz.');
-            return false;
-        }
-
-        const questionsData = [];
-
-        questionCards.forEach((card, index) => {
-            const questionType = card.querySelector('.question-type').value;
-            const questionText = card.querySelector('.question-text').value;
-            const points = card.querySelector('.question-points').value;
-            const explanation = card.querySelector('.question-explanation').value;
-
-            let correctAnswer = '';
-            let options = [];
-
-            if (questionType === 'MCQ') {
-                const optionInputs = card.querySelectorAll('.option-text');
-                options = Array.from(optionInputs).map(input => input.value);
-                const selectedRadio = card.querySelector('input[type="radio"]:checked');
-                correctAnswer = options[parseInt(selectedRadio.value)];
-            } else if (questionType === 'TRUE_FALSE') {
-                const selectedRadio = card.querySelector('input[type="radio"]:checked');
-                correctAnswer = selectedRadio.value;
-                options = ['True', 'False'];
-            } else if (questionType === 'TEXT') {
-                correctAnswer = card.querySelector('.correct-answer-text').value;
-                options = [];
-            }
-
-            questionsData.push({
-                question_type: questionType,
-                question_text: questionText,
-                points: parseInt(points),
-                correct_answer: correctAnswer,
-                options: options,
-                explanation: explanation,
-                order: index + 1
-            });
+    try {
+        const response = await fetch("{% url 'generate_quiz_ai' course.id %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify({ text: courseText })
         });
+        const data = await response.json();
+        if (data.questions && data.questions.length > 0) {
+            data.questions.forEach(q => addGeneratedQuestion(q));
+        } else {
+            alert("Aucune question générée.");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erreur lors de la génération des questions.");
+    } finally {
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-robot"></i> Générer des questions avec l\'IA';
+    }
+}
 
-        document.getElementById('questions-data').value = JSON.stringify(questionsData);
+document.querySelector('form').addEventListener('submit', function(e) {
+    const questionCards = document.querySelectorAll('#questions-container .card');
+    if (questionCards.length === 0) {
+        e.preventDefault();
+        alert('Veuillez générer au moins une question.');
+        return false;
+    }
+
+    const questionsData = [];
+    questionCards.forEach((card, index) => {
+        const questionText = card.querySelector('.question-text').value;
+        const points = parseInt(card.querySelector('.question-points').value) || 10;
+        const explanation = card.querySelector('.question-explanation').value;
+        const correctInput = card.querySelector('input[type="radio"]:checked') || card.querySelector('.correct-answer-text');
+        let correctAnswer = correctInput ? (correctInput.value || correctInput.checked && correctInput.value) : '';
+        const options = Array.from(card.querySelectorAll('.option-text')).map(opt => opt.value);
+        questionsData.push({
+            question_text: questionText,
+            points: points,
+            correct_answer: correctAnswer,
+            options: options,
+            explanation: explanation,
+            order: index + 1
+        });
     });
+    document.getElementById('questions-data').value = JSON.stringify(questionsData);
+});
+
+async function generateQuizAI() {
+    const text = document.getElementById('ai_course_text').value.trim();
+    const pdfInput = document.getElementById('course_pdf');
+    if (pdfInput.files.length) {
+        alert("Génération depuis PDF non encore implémentée.");
+        return;
+    } else if (!text.length) {
+        alert("Veuillez entrer un texte ou sélectionner un PDF.");
+        return;
+    }
+
+    try {
+        const response = await fetch("{% url 'generate_quiz' course.id %}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+            body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (data.questions && data.questions.length > 0) {
+            data.questions.forEach(q => addGeneratedQuestion(q));
+            alert("Questions générées avec succès !");
+        } else {
+            alert("Aucune question générée.");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erreur lors de la génération des questions.");
+    }
+}
 </script>
 {% endblock %}

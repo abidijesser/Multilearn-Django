@@ -8,6 +8,8 @@ from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Feedba
 from .content_filter import content_filter
 from django.http import JsonResponse
 import json
+from django.shortcuts import render
+from .generate_quiz import generate_quiz_from_text
 
 # ============= Pages publiques =============
 
@@ -816,8 +818,126 @@ def feedback_delete(request, feedback_id):
         return redirect('feedback_list')
     
     return render(request, 'feedback_delete.html', {'feedback': feedback})
+@login_required
+def generate_quiz_ai(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+    quiz_data = None
+
+    if request.method == "POST":
+        course_text = request.POST.get("course_text", "").strip()
+        if course_text:
+            quiz_data = generate_quiz_from_text(course_text)
+
+    context = {
+        "quiz_data": quiz_data,
+        "course": course
+    }
+    return render(request, "quiz/generate_quiz.html", context)
+import PyPDF2
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+@csrf_exempt
+def generate_quiz_ai_pdf(request, course_id):
+    if request.method == 'POST' and request.FILES.get('pdf'):
+        pdf_file = request.FILES['pdf']
+        reader = PdfReader(pdf_file)
+        text = "".join([page.extract_text() + "\n" for page in reader.pages])
+        # Exemple : appel IA pour générer des questions ici
+        questions = [
+            {
+                "question_text": "Exemple question depuis PDF",
+                "points": 10,
+                "correct_answer": "Réponse 1",
+                "options": ["Réponse 1", "Réponse 2", "Réponse 3"],
+                "explanation": "Explication"
+            }
+        ]
+        return JsonResponse({"questions": questions})
+    return JsonResponse({"error": "Aucun PDF reçu"}, status=400)
+
+from django.http import JsonResponse
+from .models import Course
+from .generate_quiz import generate_quiz_from_text
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from .models import Course, Quiz, Question
+import json
 
 
+def quiz_create(request, course_id):
+    course = get_object_or_404(Course, id=course_id)
+
+    if request.method == "POST":
+        # 1️⃣ Récupérer les infos générales du quiz
+        title = request.POST.get("title")
+        description = request.POST.get("description")
+        quiz_type = request.POST.get("quiz_type")
+        duration = int(request.POST.get("duration_minutes", 30))
+        passing_score = int(request.POST.get("passing_score", 70))
+        max_attempts = int(request.POST.get("max_attempts", 3))
+        show_answers = bool(request.POST.get("show_answers"))
+
+        # 2️⃣ Créer le quiz
+        quiz = Quiz.objects.create(
+            course=course,
+            title=title,
+            description=description,
+            quiz_type=quiz_type,
+            duration_minutes=duration,
+            passing_score=passing_score,
+            max_attempts=max_attempts,
+            show_answers=show_answers
+        )
+
+        # 3️⃣ Ajouter les questions générées (depuis ton JS)
+        questions_json = request.POST.get("questions_data")
+        if questions_json:
+            try:
+                questions_data = json.loads(questions_json)
+                for q in questions_data:
+                    Question.objects.create(
+                        quiz=quiz,
+                        question_text=q.get("question_text"),
+                        points=q.get("points", 10),
+                        correct_answer=q.get("correct_answer"),
+                        order=q.get("order", 1)
+                        # ⚠️ Ne mets pas 'options' ou 'explanation' si ton modèle Question ne les a pas
+                    )
+            except Exception as e:
+                messages.error(request, f"Erreur lors de la création des questions : {e}")
+
+        messages.success(request, "Quiz créé !")
+        return redirect('quiz_list', course_id=course.id)
+
+    # Sinon, affichage du formulaire
+    context = {
+        "course": course
+    }
+    return render(request, "quiz_create.html", context)
+
+
+from PyPDF2 import PdfReader  # Pour extraire texte des PDF
+
+@csrf_exempt
+def generate_quiz_view(request, course_id):
+    """Génération du quiz depuis texte ou PDF."""
+    course = Course.objects.get(pk=course_id)
+
+    # Gestion PDF
+    if request.FILES.get("pdf"):
+        pdf_file = request.FILES["pdf"]
+        reader = PdfReader(pdf_file)
+        text = "\n".join(page.extract_text() for page in reader.pages)
+    else:
+        data = json.loads(request.body.decode("utf-8"))
+        text = data.get("text", "") or getattr(course, "description", "")
+
+    if not text.strip():
+        return JsonResponse({"questions": []})
+
+    quiz_data = generate_quiz_from_text(text)
+    return JsonResponse({"questions": quiz_data})
 def check_content_api(request):
     """
     API endpoint pour vérifier le contenu en temps réel
@@ -859,3 +979,4 @@ def check_content_api(request):
         return JsonResponse({'error': 'Données JSON invalides'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    

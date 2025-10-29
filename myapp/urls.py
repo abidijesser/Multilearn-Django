@@ -1,8 +1,9 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from .views import generate_quiz_view
 
-urlpatterns = [
+urlpatterns =[
     # Pages publiques
     path('', views.home, name='home'),
     
@@ -30,7 +31,13 @@ urlpatterns = [
     path('quiz/<int:quiz_id>/submit/', views.quiz_submit, name='quiz_submit'),
     path('quiz/<int:quiz_id>/results/', views.quiz_results, name='quiz_results'),
     path('quiz/result/<int:result_id>/', views.quiz_result_detail, name='quiz_result_detail'),
-    
+path('generate-quiz/', generate_quiz_view, name='generate_quiz'),
+path('courses/<int:course_id>/quiz/generate_ai/', views.generate_quiz_view, name='generate_quiz_ai'),
+# urls.py
+path('courses/<int:course_id>/quiz/generate_ai_pdf/', views.generate_quiz_ai_pdf, name='generate_quiz_ai_pdf'),
+path('generate-quiz/', generate_quiz_view, name='generate_quiz'),
+path('courses/<int:course_id>/quiz/generate_ai/', generate_quiz_view, name='generate_quiz'),
+
     # Feedback
     path('feedback/', views.feedback_list, name='feedback_list'),
     path('feedback/create/', views.feedback_create, name='feedback_create'),
