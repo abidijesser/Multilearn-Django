@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}Passer le quiz - {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="card">
+        <div class="card-header bg-info text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3><i class="bi bi-clipboard-check"></i> {{ quiz.title }}</h3>
+                <span class="badge bg-light text-dark">
+                    <i class="bi bi-clock"></i> {{ quiz.duration_minutes }} min
+                </span>
+            </div>
+            <p class="mb-0 mt-2">Tentative {{ attempt_number }} / {{ quiz.max_attempts }}</p>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> <strong>Important:</strong>
+                <ul class="mb-0 mt-2">
+                    <li>Répondez à toutes les questions</li>
+                    <li>Vous avez {{ quiz.duration_minutes }} minutes pour compléter ce quiz</li>
+                    <li>Une fois soumis, vous ne pourrez plus modifier vos réponses</li>
+                    <li>Score requis pour réussir: {{ quiz.passing_score }}%</li>
+                </ul>
+            </div>
+
+            <form method="post" action="{% url 'quiz_submit' quiz.id %}" id="quizForm">
+                {% csrf_token %}
+
+                {% for question in questions %}
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5>Question {{ forloop.counter }} <small class="text-muted">({{ question.points }} point{{
+                                question.points|pluralize }})</small></h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="lead">{{ question.question_text }}</p>
+
+                        {% if question.question_type == 'MCQ' %}
+                        <!-- Multiple Choice Question -->
+                        {% for choice in question.get_choices_list %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="question_{{ question.id }}"
+                                id="q{{ question.id }}_{{ forloop.counter0 }}" value="{{ forloop.counter0 }}" required>
+                            <label class="form-check-label" for="q{{ question.id }}_{{ forloop.counter0 }}">
+                                {{ choice }}
+                            </label>
+                        </div>
+                        {% endfor %}
+
+                        {% elif question.question_type == 'TRUE_FALSE' %}
+                        <!-- True/False Question -->
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="question_{{ question.id }}"
+                                id="q{{ question.id }}_true" value="0" required>
+                            <label class="form-check-label" for="q{{ question.id }}_true">
+                                <i class="bi bi-check-circle text-success"></i> Vrai
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="question_{{ question.id }}"
+                                id="q{{ question.id }}_false" value="1" required>
+                            <label class="form-check-label" for="q{{ question.id }}_false">
+                                <i class="bi bi-x-circle text-danger"></i> Faux
+                            </label>
+                        </div>
+
+                        {% else %}
+                        <!-- Text Question -->
+                        <textarea class="form-control" name="question_{{ question.id }}" rows="4"
+                            placeholder="Votre réponse..." required></textarea>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{% url 'quiz_detail' quiz.id %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Annuler
+                    </a>
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="bi bi-check-circle"></i> Soumettre mes réponses
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    // Timer pour le quiz
+    let timeLeft = {{ quiz.duration_minutes }} * 60; // en secondes
+
+    function updateTimer() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+
+        document.title = `${minutes}:${seconds.toString().padStart(2, '0')} - {{ quiz.title }}`;
+
+        if (timeLeft <= 0) {
+            alert('Temps écoulé ! Le quiz va être soumis automatiquement.');
+            document.getElementById('quizForm').submit();
+        }
+
+        timeLeft--;
+    }
+
+    // Mettre à jour le timer chaque seconde
+    setInterval(updateTimer, 1000);
+
+    // Confirmation avant de quitter la page
+    window.addEventListener('beforeunload', function (e) {
+        e.preventDefault();
+        e.returnValue = '';
+    });
+
+    // Retirer la confirmation après soumission
+    document.getElementById('quizForm').addEventListener('submit', function () {
+        window.removeEventListener('beforeunload', function () { });
+    });
+</script>
+{% endblock %}
+{% endblock %}

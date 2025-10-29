@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}Feedbacks - MultiLearn{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <!-- En-tête -->
+            <div class="text-center mb-5">
+                <h1 class="display-4 fw-bold text-primary">
+                    <i class="bi bi-chat-heart"></i> Avis des utilisateurs
+                </h1>
+                <p class="lead text-muted">
+                    Découvrez ce que pensent nos utilisateurs de la plateforme MultiLearn
+                </p>
+                <a href="{% url 'feedback_create' %}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-plus-circle"></i> Laisser un avis
+                </a>
+            </div>
+
+            <!-- Statistiques -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <i class="bi bi-chat-dots text-primary fs-1"></i>
+                            <h3 class="mt-2">{{ feedbacks.count }}</h3>
+                            <p class="text-muted">Avis publiés</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <i class="bi bi-people text-success fs-1"></i>
+                            <h3 class="mt-2">{{ feedbacks.count }}</h3>
+                            <p class="text-muted">Utilisateurs satisfaits</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste des feedbacks -->
+            {% if feedbacks %}
+            <div class="row">
+                {% for feedback in feedbacks %}
+                <div class="col-12 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h5 class="card-title mb-1">
+                                        <i class="bi bi-person-circle text-primary"></i>
+                                        {{ feedback.display_name }}
+                                    </h5>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar"></i>
+                                        {{ feedback.created_at|date:"d F Y à H:i" }}
+                                        {% if feedback.user %}
+                                        <span class="badge bg-success ms-2">
+                                            <i class="bi bi-person-check"></i> Membre
+                                        </span>
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Approuvé
+                                    </span>
+                                    {% if user.is_authenticated and feedback.user == user %}
+                                    <!-- Menu déroulant pour le propriétaire -->
+                                    <div class="dropdown">
+                                        <button class="btn btn-outline-secondary btn-sm" type="button" 
+                                                data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <a class="dropdown-item" href="{% url 'feedback_edit' feedback.id %}">
+                                                    <i class="bi bi-pencil"></i> Modifier
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item text-danger" href="{% url 'feedback_delete' feedback.id %}">
+                                                    <i class="bi bi-trash"></i> Supprimer
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <p class="card-text">{{ feedback.message|linebreaks }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-chat-dots text-muted" style="font-size: 4rem;"></i>
+                <h3 class="text-muted mt-3">Aucun avis pour le moment</h3>
+                <p class="text-muted">Soyez le premier à laisser votre avis sur notre plateforme !</p>
+                <a href="{% url 'feedback_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Laisser un avis
+                </a>
+            </div>
+            {% endif %}
+
+            <!-- Call to action -->
+            <div class="text-center mt-5">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h4 class="card-title">
+                            <i class="bi bi-heart"></i> Votre avis nous intéresse !
+                        </h4>
+                        <p class="card-text">
+                            Partagez votre expérience avec MultiLearn et aidez d'autres utilisateurs à découvrir notre plateforme.
+                        </p>
+                        <a href="{% url 'feedback_create' %}" class="btn btn-light btn-lg">
+                            <i class="bi bi-pencil"></i> Écrire un avis
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

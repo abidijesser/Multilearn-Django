@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+
+{% block title %}Laisser un avis - MultiLearn{% endblock %}
+
+{% block extra_css %}
+<style>
+    .char-counter {
+        transition: all 0.3s ease;
+    }
+    
+    .char-counter.valid {
+        color: #28a745;
+    }
+    
+    .char-counter.invalid {
+        color: #dc3545;
+    }
+    
+    .char-counter.warning {
+        color: #ffc107;
+    }
+    
+    #char-progress {
+        transition: all 0.3s ease;
+    }
+    
+    .submit-btn-disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .submit-btn-enabled {
+        opacity: 1;
+        cursor: pointer;
+    }
+    
+    .message-textarea {
+        transition: border-color 0.3s ease;
+    }
+    
+    .message-textarea.valid {
+        border-color: #28a745;
+        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+    }
+    
+    .message-textarea.invalid {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <!-- En-tête -->
+            <div class="text-center mb-5">
+                <h1 class="display-4 fw-bold text-primary">
+                    <i class="bi bi-chat-heart"></i> Laisser un avis
+                </h1>
+                <p class="lead text-muted">
+                    Partagez votre expérience avec MultiLearn et aidez d'autres utilisateurs
+                </p>
+            </div>
+
+            <!-- Formulaire -->
+            <div class="card">
+                <div class="card-body p-4">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if user.is_authenticated %}
+                        <!-- Utilisateur connecté - afficher ses informations -->
+                        <div class="alert alert-info">
+                            <i class="bi bi-person-check"></i>
+                            <strong>Connecté en tant que :</strong> {{ user.get_full_name|default:user.username }} ({{ user.email }})
+                        </div>
+                        {% else %}
+                        <!-- Utilisateur anonyme - demander les informations -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="username" class="form-label">
+                                    <i class="bi bi-person"></i> Nom d'utilisateur *
+                                </label>
+                                <input type="text" class="form-control" id="username" name="username" 
+                                       placeholder="Votre nom d'utilisateur" required>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">
+                                    <i class="bi bi-envelope"></i> Adresse email *
+                                </label>
+                                <input type="email" class="form-control" id="email" name="email" 
+                                       placeholder="votre@email.com" required>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-4">
+                            <label for="message" class="form-label">
+                                <i class="bi bi-chat-text"></i> Votre avis *
+                            </label>
+                            <textarea class="form-control message-textarea" id="message" name="message" rows="6" 
+                                      placeholder="Décrivez votre expérience avec MultiLearn. Que pensez-vous de la plateforme ? Quels sont les points forts ? Y a-t-il des améliorations à apporter ?" 
+                                      required minlength="3"></textarea>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i>
+                                Votre avis sera publié après modération par notre équipe.
+                            </div>
+                            <!-- Compteur de caractères en temps réel -->
+                            <div class="mt-2">
+                                <small id="char-counter" class="char-counter">
+                                    <span id="char-count">0</span> / <span id="min-chars">3</span> caractères minimum
+                                </small>
+                                <div class="progress mt-1" style="height: 4px;">
+                                    <div id="char-progress" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Détection de contenu inapproprié -->
+                            <div id="content-warning" class="mt-2" style="display: none;">
+                                <div class="alert alert-danger">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    <strong>Contenu inapproprié détecté :</strong>
+                                    <span id="content-warning-message"></span>
+                                </div>
+                                <div id="content-suggestions" class="mt-2"></div>
+                            </div>
+                        </div>
+
+                        <!-- Informations sur la modération -->
+                        <div class="alert alert-info">
+                            <i class="bi bi-shield-check"></i>
+                            <strong>Modération :</strong> Tous les avis sont modérés avant publication pour maintenir la qualité et la pertinence des commentaires.
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'feedback_list' %}" class="btn btn-outline-secondary me-md-2">
+                                <i class="bi bi-arrow-left"></i> Retour aux avis
+                            </a>
+                            <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+                                <i class="bi bi-send"></i> Publier mon avis
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Conseils pour un bon avis -->
+            <div class="mt-4">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-lightbulb"></i> Conseils pour un bon avis
+                        </h5>
+                        <ul class="mb-0">
+                            <li><strong>Soyez constructif :</strong> Partagez votre expérience de manière positive et constructive</li>
+                            <li><strong>Soyez spécifique :</strong> Mentionnez les fonctionnalités que vous appréciez ou les améliorations souhaitées</li>
+                            <li><strong>Soyez respectueux :</strong> Utilisez un langage respectueux et professionnel</li>
+                            <li><strong>Soyez honnête :</strong> Partagez votre expérience réelle avec la plateforme</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const messageTextarea = document.getElementById('message');
+    const charCount = document.getElementById('char-count');
+    const charProgress = document.getElementById('char-progress');
+    const submitBtn = document.getElementById('submit-btn');
+    const minChars = 3;
+    
+    // Variables pour la détection de contenu
+    let contentCheckTimeout;
+    let isContentAppropriate = true;
+    
+    // Fonction pour vérifier le contenu via l'API
+    function checkContent(text) {
+        if (text.length < 3) {
+            hideContentWarning();
+            return;
+        }
+        
+        // Délai pour éviter trop d'appels API
+        clearTimeout(contentCheckTimeout);
+        contentCheckTimeout = setTimeout(() => {
+            fetch('{% url "check_content_api" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({ text: text })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.is_appropriate) {
+                    hideContentWarning();
+                    isContentAppropriate = true;
+                } else {
+                    showContentWarning(data);
+                    isContentAppropriate = false;
+                }
+                updateSubmitButton();
+            })
+            .catch(error => {
+                console.error('Erreur lors de la vérification du contenu:', error);
+            });
+        }, 1000); // Attendre 1 seconde après la dernière frappe
+    }
+    
+    // Fonction pour afficher l'avertissement de contenu
+    function showContentWarning(data) {
+        const warningDiv = document.getElementById('content-warning');
+        const messageSpan = document.getElementById('content-warning-message');
+        const suggestionsDiv = document.getElementById('content-suggestions');
+        
+        messageSpan.textContent = data.message;
+        
+        // Afficher les suggestions
+        if (data.suggestions && data.suggestions.length > 0) {
+            suggestionsDiv.innerHTML = '<strong>Suggestions :</strong><ul class="mb-0 mt-1">' +
+                data.suggestions.map(suggestion => `<li>${suggestion}</li>`).join('') +
+                '</ul>';
+        } else {
+            suggestionsDiv.innerHTML = '';
+        }
+        
+        warningDiv.style.display = 'block';
+    }
+    
+    // Fonction pour masquer l'avertissement de contenu
+    function hideContentWarning() {
+        const warningDiv = document.getElementById('content-warning');
+        warningDiv.style.display = 'none';
+    }
+    
+    // Fonction pour mettre à jour le bouton de soumission
+    function updateSubmitButton() {
+        const currentLength = messageTextarea.value.length;
+        const isValidLength = currentLength >= minChars;
+        const canSubmit = isValidLength && isContentAppropriate;
+        
+        submitBtn.disabled = !canSubmit;
+        if (canSubmit) {
+            submitBtn.classList.remove('btn-secondary', 'submit-btn-disabled');
+            submitBtn.classList.add('btn-primary', 'submit-btn-enabled');
+        } else {
+            submitBtn.classList.remove('btn-primary', 'submit-btn-enabled');
+            submitBtn.classList.add('btn-secondary', 'submit-btn-disabled');
+        }
+    }
+    
+    // Fonction pour mettre à jour le compteur et la validation
+    function updateCharCount() {
+        const currentLength = messageTextarea.value.length;
+        
+        // Calculer le pourcentage de progression
+        const progress = Math.min((currentLength / minChars) * 100, 100);
+        charProgress.style.width = progress + '%';
+        
+        // Mettre à jour les classes CSS du textarea
+        messageTextarea.classList.remove('valid', 'invalid');
+        if (currentLength >= minChars) {
+            messageTextarea.classList.add('valid');
+        } else if (currentLength > 0) {
+            messageTextarea.classList.add('invalid');
+        }
+        
+        // Mettre à jour les classes CSS du compteur
+        const counter = document.getElementById('char-counter');
+        counter.classList.remove('valid', 'invalid', 'warning');
+        
+        // Changer la couleur de la barre de progression
+        if (currentLength >= minChars) {
+            charProgress.classList.remove('bg-warning');
+            charProgress.classList.add('bg-success');
+            counter.classList.add('valid');
+        } else {
+            charProgress.classList.remove('bg-success');
+            charProgress.classList.add('bg-warning');
+            counter.classList.add(currentLength > 0 ? 'warning' : 'invalid');
+        }
+        
+        // Mettre à jour le texte du compteur
+        if (currentLength < minChars) {
+            const remaining = minChars - currentLength;
+            counter.innerHTML = 
+                `<span id="char-count">${currentLength}</span> / <span id="min-chars">${minChars}</span> caractères minimum <span class="text-warning">(${remaining} restant${remaining > 1 ? 's' : ''})</span>`;
+        } else {
+            counter.innerHTML = 
+                `<span id="char-count">${currentLength}</span> / <span id="min-chars">${minChars}</span> caractères minimum <span class="text-success">✓</span>`;
+        }
+        
+        // Vérifier le contenu
+        checkContent(messageTextarea.value);
+        
+        // Mettre à jour le bouton
+        updateSubmitButton();
+    }
+    
+    // Écouter les changements dans le textarea
+    messageTextarea.addEventListener('input', updateCharCount);
+    messageTextarea.addEventListener('keyup', updateCharCount);
+    messageTextarea.addEventListener('paste', function() {
+        setTimeout(updateCharCount, 10); // Petit délai pour laisser le temps au paste de se terminer
+    });
+    
+    // Validation du formulaire avant soumission
+    document.querySelector('form').addEventListener('submit', function(e) {
+        if (messageTextarea.value.trim().length < minChars) {
+            e.preventDefault();
+            alert(`Votre avis doit contenir au moins ${minChars} caractères.`);
+            messageTextarea.focus();
+            return false;
+        }
+        
+        if (!isContentAppropriate) {
+            e.preventDefault();
+            alert('Votre message contient du contenu inapproprié. Veuillez le modifier avant de le soumettre.');
+            messageTextarea.focus();
+            return false;
+        }
+    });
+    
+    // Initialiser l'état
+    updateCharCount();
+});
+</script>
+{% endblock %}

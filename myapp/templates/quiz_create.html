@@ -1,0 +1,281 @@
+{% extends 'base.html' %}
+
+{% block title %}Créer un quiz - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'course_list' %}">Cours</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'course_detail' course.id %}">{{ course.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'quiz_list' course.id %}">Quiz</a></li>
+            <li class="breadcrumb-item active">Créer un quiz</li>
+        </ol>
+    </nav>
+
+    <!-- Formulaire de création de quiz -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h3><i class="bi bi-plus-circle"></i> Créer un nouveau quiz</h3>
+                    <p class="mb-0">Pour le cours: <strong>{{ course.title }}</strong></p>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <!-- Infos générales -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label"><i class="bi bi-card-heading"></i> Titre du quiz *</label>
+                            <input type="text" class="form-control" id="title" name="title" required
+                                placeholder="Ex: Quiz de fin de module">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label"><i class="bi bi-file-text"></i> Description *</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" required
+                                placeholder="Décrivez le contenu et les objectifs de ce quiz..."></textarea>
+                        </div>
+<div class="col-md-6 mb-3">
+    <label for="quiz_level" class="form-label"><i class="bi bi-bar-chart"></i> Niveau *</label>
+<select name="niveau" id="niveau">
+  <option value="Débutant">Débutant</option>
+  <option value="Intermédiaire">Intermédiaire</option>
+  <option value="Avancé">Avancé</option>
+  <option value="Expert">Expert</option>
+</select>
+</div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="quiz_type" class="form-label"><i class="bi bi-tag"></i> Type de quiz *</label>
+                                <select class="form-select" id="quiz_type" name="quiz_type" required>
+                                    <option value="PRACTICE">Pratique (entraînement)</option>
+                                    <option value="GRADED">Noté (compte dans la note)</option>
+                                    <option value="EXAM">Examen (évaluation finale)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="duration_minutes" class="form-label"><i class="bi bi-clock"></i> Durée (minutes) *</label>
+                                <input type="number" class="form-control" id="duration_minutes" name="duration_minutes"
+                                    min="1" max="180" value="30" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="passing_score" class="form-label"><i class="bi bi-trophy"></i> Score de réussite (%) *</label>
+                                <input type="number" class="form-control" id="passing_score" name="passing_score"
+                                    min="0" max="100" value="70" required>
+                                <small class="text-muted">Pourcentage minimum pour réussir le quiz</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="max_attempts" class="form-label"><i class="bi bi-arrow-repeat"></i> Nombre de tentatives *</label>
+                                <input type="number" class="form-control" id="max_attempts" name="max_attempts" min="1"
+                                    max="10" value="3" required>
+                                <small class="text-muted">Nombre de fois qu'un étudiant peut passer le quiz</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="show_answers" name="show_answers" checked>
+                                <label class="form-check-label" for="show_answers">
+                                    <i class="bi bi-eye"></i> Afficher les réponses après la soumission
+                                </label>
+                                <small class="d-block text-muted">Les étudiants pourront voir les bonnes réponses et les explications</small>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Génération IA -->
+                        <div class="mb-4 p-3 border rounded bg-light">
+                            <h5><i class="bi bi-robot"></i> Génération automatique de quiz</h5>
+
+                            <div class="mb-3">
+                                <label for="ai_course_text" class="form-label">Texte du cours :</label>
+                                <textarea id="ai_course_text" class="form-control" rows="2" placeholder="Collez ici le texte ou résumé du cours"></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="course_pdf" class="form-label">Ou uploader un PDF :</label>
+                                <input type="file" id="course_pdf" class="form-control" accept=".pdf">
+                            </div>
+
+                            <button type="button" class="btn btn-primary" onclick="generateQuizAI()">
+                                <i class="bi bi-robot"></i> Générer le quiz
+                            </button>
+                        </div>
+
+                        <!-- Questions générées -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4><i class="bi bi-patch-question"></i> Questions du quiz</h4>
+                                <button type="button" class="btn btn-primary" onclick="generateQuestionsAI()">
+                                    <i class="bi bi-robot"></i> 
+                                </button>
+                            </div>
+
+                            <div id="questions-container"></div>
+                            <div id="no-questions-message" class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> Aucune question ajoutée. Cliquez sur "Générer des questions" pour commencer.
+                            </div>
+                        </div>
+
+                        <input type="hidden" id="questions-data" name="questions_data" value="">
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-info btn-lg">
+                                <i class="bi bi-check-circle"></i> Créer le quiz
+                            </button>
+                            <a href="{% url 'quiz_list' course.id %}" class="btn btn-secondary btn-lg">
+                                <i class="bi bi-x-circle"></i> Annuler
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let questionCounter = 0;
+
+function addGeneratedQuestion(q) {
+    questionCounter++;
+    const questionId = `question-${questionCounter}`;
+    const optionsHtml = (q.options || []).map((opt, idx) => `
+        <div class="input-group mb-2">
+            <div class="input-group-text">
+                <input class="form-check-input mt-0" type="radio" name="${questionId}-correct" value="${idx}" ${opt === q.correct_answer ? 'checked' : ''}>
+            </div>
+            <input type="text" class="form-control option-text" value="${opt}" required>
+        </div>
+    `).join('');
+
+    const questionHtml = `
+        <div class="card mb-3" id="${questionId}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6>Question ${questionCounter}</h6>
+                <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.card').remove()">
+                    <i class="bi bi-trash"></i> Supprimer
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label>Question *</label>
+                    <textarea class="form-control question-text" rows="2" required>${q.question_text}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label>Points *</label>
+                    <input type="number" class="form-control question-points" value="${q.points || 10}" required>
+                </div>
+                <div class="mb-3">
+                    <label>Explication</label>
+                    <textarea class="form-control question-explanation" rows="2">${q.explanation || ''}</textarea>
+                </div>
+                <div class="answer-options">
+                    ${optionsHtml || `<input type="text" class="form-control correct-answer-text" value="${q.correct_answer || ''}" required>`}
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
+    document.getElementById('no-questions-message').style.display = 'none';
+}
+
+async function generateQuestionsAI() {
+    const courseText = document.getElementById('description').value.trim();
+    if (!courseText) return alert("Veuillez entrer une description du cours.");
+
+    const button = event.target;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Génération en cours...';
+
+    try {
+        const response = await fetch("{% url 'generate_quiz_ai' course.id %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify({ text: courseText })
+        });
+        const data = await response.json();
+        if (data.questions && data.questions.length > 0) {
+            data.questions.forEach(q => addGeneratedQuestion(q));
+        } else {
+            alert("Aucune question générée.");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erreur lors de la génération des questions.");
+    } finally {
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-robot"></i> Générer des questions avec l\'IA';
+    }
+}
+
+document.querySelector('form').addEventListener('submit', function(e) {
+    const questionCards = document.querySelectorAll('#questions-container .card');
+    if (questionCards.length === 0) {
+        e.preventDefault();
+        alert('Veuillez générer au moins une question.');
+        return false;
+    }
+
+    const questionsData = [];
+    questionCards.forEach((card, index) => {
+        const questionText = card.querySelector('.question-text').value;
+        const points = parseInt(card.querySelector('.question-points').value) || 10;
+        const explanation = card.querySelector('.question-explanation').value;
+        const correctInput = card.querySelector('input[type="radio"]:checked') || card.querySelector('.correct-answer-text');
+        let correctAnswer = correctInput ? (correctInput.value || correctInput.checked && correctInput.value) : '';
+        const options = Array.from(card.querySelectorAll('.option-text')).map(opt => opt.value);
+        questionsData.push({
+            question_text: questionText,
+            points: points,
+            correct_answer: correctAnswer,
+            options: options,
+            explanation: explanation,
+            order: index + 1
+        });
+    });
+    document.getElementById('questions-data').value = JSON.stringify(questionsData);
+});
+
+async function generateQuizAI() {
+    const text = document.getElementById('ai_course_text').value.trim();
+    const pdfInput = document.getElementById('course_pdf');
+    if (pdfInput.files.length) {
+        alert("Génération depuis PDF non encore implémentée.");
+        return;
+    } else if (!text.length) {
+        alert("Veuillez entrer un texte ou sélectionner un PDF.");
+        return;
+    }
+
+    try {
+        const response = await fetch("{% url 'generate_quiz' course.id %}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+            body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (data.questions && data.questions.length > 0) {
+            data.questions.forEach(q => addGeneratedQuestion(q));
+            alert("Questions générées avec succès !");
+        } else {
+            alert("Aucune question générée.");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Erreur lors de la génération des questions.");
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Course Info -->
+            <div class="card mb-4">
+                {% if course.cover_image %}
+                <img src="{{ course.cover_image.url }}" class="card-img-top" alt="{{ course.title }}"
+                    style="max-height: 400px; object-fit: cover;">
+                {% else %}
+                <div class="card-img-top d-flex align-items-center justify-content-center"
+                    style="height: 300px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <i class="bi bi-book-fill text-white" style="font-size: 8rem;"></i>
+                </div>
+                {% endif %}
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <span class="badge bg-info me-2">{{ course.level }}</span>
+                            {% if course.status == 'PUBLISHED' %}
+                            <span class="badge bg-success">Publié</span>
+                            {% else %}
+                            <span class="badge bg-warning">Brouillon</span>
+                            {% endif %}
+                        </div>
+                        {% if user == course.teacher %}
+                        <a href="{% url 'course_edit' course.id %}" class="btn btn-warning">
+                            <i class="bi bi-pencil"></i> Modifier
+                        </a>
+                        {% endif %}
+                    </div>
+
+                    <h1 class="display-5">{{ course.title }}</h1>
+                    <p class="lead text-muted">{{ course.description }}</p>
+
+                    <hr>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><i class="bi bi-person-badge text-primary"></i> <strong>Enseignant:</strong> 
+                                {% if course.teacher.get_full_name %}
+                                    {{ course.teacher.get_full_name }}
+                                {% else %}
+                                    {{ course.teacher.username }}
+                                {% endif %}
+                            </p>
+                            <p><i class="bi bi-clock text-primary"></i> <strong>Durée:</strong> {{ course.duration_hours }} heures</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><i class="bi bi-people text-primary"></i> <strong>Étudiants:</strong> {{ student_count }}</p>
+                            <p><i class="bi bi-calendar text-primary"></i> <strong>Créé le:</strong> {{ course.created_at|date:"d/m/Y" }}</p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h4><i class="bi bi-list-check"></i> Contenu du cours</h4>
+                    <div class="content-section"
+                        style="white-space: pre-line; background: #f8f9fa; padding: 1.5rem; border-radius: 10px;">
+                        {{ course.content }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quizzes -->
+            {% if quizzes %}
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="bi bi-clipboard-check"></i> Quiz disponibles ({{ quizzes.count }})</h5>
+                </div>
+                <div class="card-body">
+                    {% for quiz in quizzes %}
+                    <div class="d-flex justify-content-between align-items-center p-3 mb-2 border rounded">
+                        <div>
+                            <h6>{{ quiz.title }}</h6>
+                            <small class="text-muted">
+                                <i class="bi bi-patch-question"></i> {{ quiz.questions.count }} questions |
+                                <i class="bi bi-clock"></i> {{ quiz.duration_minutes }} min |
+                                <i class="bi bi-trophy"></i> {{ quiz.passing_score }}% pour réussir
+                            </small>
+                        </div>
+                        <a href="{% url 'quiz_detail' quiz.id %}" class="btn btn-info">
+                            Voir <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Enrollment Card -->
+            <div class="card mb-4 sticky-top" style="top: 100px;">
+                <div class="card-body">
+                    {% if is_enrolled %}
+                    <div class="text-center mb-3">
+                        <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                        <h5 class="mt-3">Vous êtes inscrit !</h5>
+                    </div>
+
+                    <div class="mb-3">
+                        <p class="mb-1"><strong>Votre progression</strong></p>
+                        <div class="progress" style="height: 30px;">
+                            <div class="progress-bar bg-success" role="progressbar"
+                                style="width: {{ enrollment.progress }}%">
+                                {{ enrollment.progress }}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-muted small">
+                        <i class="bi bi-calendar"></i> Inscrit le {{ enrollment.enrolled_at|date:"d/m/Y" }}
+                    </p>
+
+                    <a href="{% url 'quiz_list' course.id %}" class="btn btn-info w-100">
+                        <i class="bi bi-clipboard-check"></i> Voir les quiz
+                    </a>
+                    {% elif user.is_authenticated %}
+                    {% if user.role == 'STUDENT' %}
+                    <h5 class="text-center mb-4">Rejoindre ce cours</h5>
+                    <ul class="list-unstyled mb-4">
+                        <li><i class="bi bi-check-circle text-success"></i> Accès illimité</li>
+                        <li><i class="bi bi-check-circle text-success"></i> {{ course.duration_hours }}h de contenu</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Quiz et exercices</li>
+                        <li><i class="bi bi-check-circle text-success"></i> Suivi de progression</li>
+                    </ul>
+                    <form method="post" action="{% url 'course_enroll' course.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success btn-lg w-100">
+                            <i class="bi bi-plus-circle"></i> S'inscrire gratuitement
+                        </button>
+                    </form>
+                    {% elif user.role == 'TEACHER' %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Vous êtes enseignant. Seuls les étudiants peuvent s'inscrire
+                        aux cours.
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <h5 class="text-center mb-4">Rejoindre ce cours</h5>
+                    <p class="text-center text-muted">Connectez-vous pour vous inscrire à ce cours gratuitement.</p>
+                    <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-primary btn-lg w-100 mb-2">
+                        <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                    </a>
+                    <a href="{% url 'register' %}" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-person-plus"></i> S'inscrire
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Teacher Info -->
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h6><i class="bi bi-person-badge"></i> À propos de l'enseignant</h6>
+                </div>
+                <div class="card-body text-center">
+                    {% if course.teacher.profile_picture %}
+                    <img src="{{ course.teacher.profile_picture.url }}" class="rounded-circle mb-3"
+                        style="width: 100px; height: 100px; object-fit: cover;">
+                    {% else %}
+                    <i class="bi bi-person-circle" style="font-size: 100px; color: var(--primary-color);"></i>
+                    {% endif %}
+                    <h6>{% if course.teacher.get_full_name %}{{ course.teacher.get_full_name }}{% else %}{{ course.teacher.username }}{% endif %}</h6>
+                    <p class="text-muted small">@{{ course.teacher.username }}</p>
+                    {% if course.teacher.bio %}
+                    <p class="small">{{ course.teacher.bio|truncatewords:30 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

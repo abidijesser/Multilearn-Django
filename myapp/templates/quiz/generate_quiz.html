@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Créer un quiz - {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <h3>Créer un quiz pour : {{ course.title }}</h3>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <!-- Infos générales du quiz -->
+        <div class="mb-3">
+            <label>Titre *</label>
+            <input type="text" class="form-control" name="title" required>
+        </div>
+        <div class="mb-3">
+            <label>Description *</label>
+            <textarea class="form-control" name="description" rows="3" required></textarea>
+        </div>
+        <div class="mb-3">
+            <label>Type de quiz *</label>
+            <select class="form-select" name="quiz_type" required>
+                <option value="PRACTICE">Pratique</option>
+                <option value="GRADED">Noté</option>
+                <option value="EXAM">Examen</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label>Durée (minutes) *</label>
+            <input type="number" class="form-control" name="duration_minutes" value="30" required>
+        </div>
+        <div class="mb-3">
+            <label>Score de réussite (%) *</label>
+            <input type="number" class="form-control" name="passing_score" value="70" required>
+        </div>
+        <div class="mb-3">
+            <label>Nombre de tentatives *</label>
+            <input type="number" class="form-control" name="max_attempts" value="3" required>
+        </div>
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" name="show_answers" checked>
+            <label class="form-check-label">Afficher les réponses après soumission</label>
+        </div>
+
+        <hr>
+
+        <!-- Génération IA -->
+        <div class="mb-3">
+            <label>Texte du cours pour générer des questions :</label>
+            <textarea id="ai_course_text" class="form-control" rows="2"></textarea>
+            <button type="button" class="btn btn-primary mt-2" onclick="generateQuizAI()">
+                Générer questions IA
+            </button>
+        </div>
+
+        <!-- Questions -->
+        <div id="questions-container" class="mb-3"></div>
+        <input type="hidden" name="questions_data" id="questions-data">
+
+        <button type="submit" class="btn btn-success">Créer le quiz</button>
+        <a href="{% url 'quiz_list' course.id %}" class="btn btn-secondary">Annuler</a>
+    </form>
+</div>
+
+<script>
+let questionCounter = 0;
+
+// Ajouter une question générée
+function addGeneratedQuestion(q) {
+    questionCounter++;
+    const questionId = `question-${questionCounter}`;
+    const optionsHtml = (q.options || []).map((opt, idx) => `
+        <div>
+            <input type="radio" name="${questionId}-correct" value="${idx}" ${opt===q.correct_answer?'checked':''}> ${opt}
+        </div>
+    `).join('');
+    const html = `
+        <div id="${questionId}" class="card mb-2 p-2">
+            <textarea class="question-text form-control mb-1" rows="2">${q.question_text}</textarea>
+            Points: <input type="number" class="question-points" value="${q.points || 10}" style="width:60px;">
+            ${optionsHtml}
+        </div>
+    `;
+    document.getElementById('questions-container').insertAdjacentHTML('beforeend', html);
+}
+
+// Préparer les données avant soumission
+document.querySelector('form').addEventListener('submit', function(e){
+    const cards = document.querySelectorAll('#questions-container .card');
+    const questionsData = [];
+    cards.forEach((card, idx)=>{
+        const questionText = card.querySelector('.question-text').value;
+        const points = parseInt(card.querySelector('.question-points').value || 10);
+        const correctInput = card.querySelector('input[type="radio"]:checked');
+        const correct_answer = correctInput ? correctInput.nextSibling.textContent.trim() : '';
+        const options = Array.from(card.querySelectorAll('input[type="radio"]')).map(r=>r.nextSibling.textContent.trim());
+        questionsData.push({question_text: questionText, points, correct_answer, options, order: idx+1});
+    });
+    document.getElementById('questions-data').value = JSON.stringify(questionsData);
+});
+
+// Simulation fonction IA (à remplacer par fetch vers ton endpoint réel)
+function generateQuizAI() {
+    const text = document.getElementById('ai_course_text').value.trim();
+    if(!text){ alert("Entrez le texte du cours"); return; }
+    // Ex: simulation de question
+    const dummy = [
+        {question_text:"Exemple QCM", points:2, correct_answer:"Réponse A", options:["Réponse A","Réponse B","Réponse C"], order:1},
+        {question_text:"Vrai/Faux ?", points:1, correct_answer:"Vrai", options:["Vrai","Faux"], order:2}
+    ];
+    dummy.forEach(q => addGeneratedQuestion(q));
+}
+</script>
+{% endblock %}

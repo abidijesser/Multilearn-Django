@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Résultats - {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h3><i class="bi bi-bar-chart"></i> Résultats du quiz: {{ quiz.title }}</h3>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h4>Score moyen</h4>
+                            <h1 class="display-4">{{ avg_score|floatformat:1 }}%</h1>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h4>Taux de réussite</h4>
+                            <h1 class="display-4">{{ pass_rate|floatformat:0 }}%</h1>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if results %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Étudiant</th>
+                            <th>Date</th>
+                            <th>Score</th>
+                            <th>Statut</th>
+                            <th>Feedback</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in results %}
+                        <tr>
+                            <td>
+                                <strong>{{ result.student.get_full_name }}</strong>
+                                <br>
+                                <small class="text-muted">@{{ result.student.username }}</small>
+                            </td>
+                            <td>{{ result.submitted_at|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <span class="badge {% if result.passed %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ result.score|floatformat:1 }}%
+                                </span>
+                            </td>
+                            <td>
+                                {% if result.passed %}
+                                <i class="bi bi-check-circle-fill text-success"></i> Réussi
+                                {% else %}
+                                <i class="bi bi-x-circle-fill text-danger"></i> Échoué
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if result.teacher_feedback %}
+                                <i class="bi bi-check text-success"></i>
+                                {% else %}
+                                <i class="bi bi-dash text-muted"></i>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'quiz_result_detail' result.id %}" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-eye"></i> Voir
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="bi bi-inbox fs-1"></i>
+                <p class="mt-3">Aucun résultat pour ce quiz.</p>
+            </div>
+            {% endif %}
+
+            <div class="mt-4">
+                <a href="{% url 'course_detail' quiz.course.id %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Retour au cours
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
