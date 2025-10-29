@@ -59,7 +59,11 @@
             <div class="card event-card-item h-100 border-0">
                 <!-- En-tête visuel -->
                 <div class="event-header position-relative">
-                    {% if event.is_online %}
+                    {% if event.image %}
+                    <div class="event-image has-photo" style="background-image: url('{{ event.image.url }}');">
+                        <div class="event-overlay"></div>
+                    </div>
+                    {% elif event.is_online %}
                     <div class="event-image online-event">
                         <i class="bi bi-laptop"></i>
                         <div class="event-overlay"></div>
@@ -125,11 +129,31 @@
                             </small>
                         </div>
 
+                        <!-- Avis et notes -->
+                        {% if event.feedbacks.exists %}
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="rating-display me-2">
+                                {% for i in "12345" %}
+                                    {% if i|add:0 <= event.average_rating %}
+                                        <span class="star-filled">★</span>
+                                    {% else %}
+                                        <span class="star-empty">☆</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">
+                                {{ event.average_rating|floatformat:1 }} ({{ event.feedback_count }} avis)
+                            </small>
+                        </div>
+                        {% endif %}
+
                         <!-- Statut de l'événement -->
                         <div class="d-flex align-items-center">
-                            <div class="status-indicator {% if event.start_time > now %}upcoming{% else %}ongoing{% endif %} me-2"></div>
+                            <div class="status-indicator {% if event.end_time < now %}ended{% elif event.start_time > now %}upcoming{% else %}ongoing{% endif %} me-2"></div>
                             <small class="text-muted">
-                                {% if event.start_time > now %}
+                                {% if event.end_time < now %}
+                                <i class="bi bi-stop-circle text-secondary"></i> Terminé
+                                {% elif event.start_time > now %}
                                 <i class="bi bi-clock text-warning"></i> À venir
                                 {% else %}
                                 <i class="bi bi-play-circle text-success"></i> En cours
@@ -141,17 +165,41 @@
                     <!-- Bouton de participation -->
                     <div class="mt-auto">
                         {% if user.is_authenticated %}
-                            {% if user in event.participants.all %}
-                                <button class="btn btn-success w-100 disabled participation-btn">
-                                    <i class="bi bi-check-circle-fill"></i>
-                                    <span class="ms-2">Déjà inscrit</span>
+                            {% if event.end_time < now %}
+                                <!-- Événement terminé - Bouton feedback pour tout utilisateur connecté -->
+                                <button class="btn btn-outline-primary w-100" 
+                                        onclick="showFeedbackModal('{{ event.id }}')">
+                                    <i class="bi bi-star"></i> Donner votre avis
                                 </button>
                             {% else %}
-                                <button class="btn btn-primary w-100 participation-btn" 
-                                        onclick="showParticipateModal('{{ event.id }}', '{{ event.title|escapejs }}')">
-                                    <i class="bi bi-person-plus-fill"></i>
-                                    <span class="ms-2">Participer</span>
-                                </button>
+                                {% if event.id in participated_event_ids %}
+                                    <!-- Déjà inscrit -->
+                                    <button class="btn btn-success w-100 disabled participation-btn">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        <span class="ms-2">Déjà inscrit</span>
+                                    </button>
+                                    {% if event.start_time <= now %}
+                                    <div class="mt-2">
+                                        <button class="btn btn-outline-primary w-100" 
+                                                onclick="showFeedbackModal('{{ event.id }}')">
+                                            <i class="bi bi-star"></i> Donner votre avis
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                {% else %}
+                                    {% if event.max_participants and event.participants.count >= event.max_participants %}
+                                    <button class="btn btn-outline-secondary w-100 disabled" title="Événement complet">
+                                        <i class="bi bi-people-fill"></i>
+                                        <span class="ms-2">Complet</span>
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-primary w-100 participation-btn" 
+                                            onclick="showParticipateModal('{{ event.id }}', '{{ event.title|escapejs }}')">
+                                        <i class="bi bi-person-plus-fill"></i>
+                                        <span class="ms-2">Participer</span>
+                                    </button>
+                                    {% endif %}
+                                {% endif %}
                             {% endif %}
                         {% else %}
                             <a href="{% url 'login' %}?next={% url 'event_list' %}" class="btn btn-outline-primary w-100">
@@ -160,11 +208,43 @@
                             </a>
                         {% endif %}
                     </div>
+                    
+                    {% with stats=event.feedback_stats %}
+                    {% if event.end_time < now %}
+                    <div class="google-like-stats mt-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <small class="text-muted">{{ stats.total|default:0 }} avis</small>
+                        </div>
+                        <div class="sentiment-rows">
+                            <div class="sentiment-row">
+                                <span class="sentiment-emoji">😀</span>
+                                <div class="sentiment-bar">
+                                    <div class="sentiment-fill pos" style="width: {{ stats.sentiment_pct.pos|default:0|floatformat:0 }}%"></div>
+                                </div>
+                                <small class="sentiment-pct">{{ stats.sentiment_pct.pos|default:0|floatformat:0 }}%</small>
+                            </div>
+                            <div class="sentiment-row">
+                                <span class="sentiment-emoji">😐</span>
+                                <div class="sentiment-bar">
+                                    <div class="sentiment-fill neu" style="width: {{ stats.sentiment_pct.neu|default:0|floatformat:0 }}%"></div>
+                                </div>
+                                <small class="sentiment-pct">{{ stats.sentiment_pct.neu|default:0|floatformat:0 }}%</small>
+                            </div>
+                            <div class="sentiment-row">
+                                <span class="sentiment-emoji">😠</span>
+                                <div class="sentiment-bar">
+                                    <div class="sentiment-fill neg" style="width: {{ stats.sentiment_pct.neg|default:0|floatformat:0 }}%"></div>
+                                </div>
+                                <small class="sentiment-pct">{{ stats.sentiment_pct.neg|default:0|floatformat:0 }}%</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
                 </div>
             </div>
         </div>
         {% empty %}
-        <!-- État vide amélioré -->
         <div class="col-12">
             <div class="text-center py-5">
                 <div class="empty-state">
@@ -181,16 +261,15 @@
         </div>
         {% endfor %}
     </div>
+    
 </div>
 
-<!-- Modal de participation amélioré -->
+<!-- Modal Participation -->
 <div class="modal fade" id="participateModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-primary text-white border-0">
-                <h5 class="modal-title">
-                    <i class="bi bi-person-plus-fill"></i> Confirmer la participation
-                </h5>
+                <h5 class="modal-title"><i class="bi bi-person-plus-fill"></i> Confirmer la participation</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4 text-center">
@@ -203,16 +282,45 @@
                 </form>
             </div>
             <div class="modal-footer border-0">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Annuler
-                </button>
-                <button type="button" class="btn btn-primary px-4" onclick="submitParticipation()">
-                    <i class="bi bi-check-circle"></i> Confirmer
-                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle"></i> Annuler</button>
+                <button type="button" class="btn btn-primary px-4" onclick="submitParticipation()"><i class="bi bi-check-circle"></i> Confirmer</button>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Feedback Modals -->
+{% for event in events %}
+    {% if user.is_authenticated and event.id in participated_event_ids %}
+    <div class="modal fade" id="feedbackModal-{{ event.id }}" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-star"></i> Votre avis sur "{{ event.title }}"</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="feedbackForm-{{ event.id }}" class="feedback-form" action="{% url 'submit_feedback' event.id %}" method="post">
+                        {% csrf_token %}
+                    <div class="mb-3">
+                        <h6 class="mb-2">Votre avis (analysé par IA)</h6>
+                        <small class="text-muted d-block mb-2">Veuillez saisir un commentaire, les étoiles sont facultatives.</small>
+                    </div>
+                        <div class="mb-3">
+                            <label class="form-label">Commentaire</label>
+                            <textarea class="form-control" name="comment" rows="3" placeholder="Partagez votre expérience..."></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> Annuler</button>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Envoyer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endfor %}
 
 <style>
 /* Styles pour le front-office */
@@ -243,6 +351,12 @@
     font-size: 3.5rem;
     color: white;
     position: relative;
+}
+
+.event-image.has-photo {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 .event-overlay {
@@ -312,6 +426,77 @@
     animation: blink 1.5s infinite;
 }
 
+.status-indicator.ended {
+    background-color: #6c757d;
+}
+
+/* Styles pour le système de notation */
+.rating {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: center;
+    gap: 5px;
+}
+
+.rating input {
+    display: none;
+}
+
+.rating label {
+    font-size: 40px;
+    color: #ddd;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.rating label:hover,
+.rating label:hover ~ label,
+.rating input:checked ~ label {
+    color: #ffd700;
+    transform: scale(1.1);
+}
+
+.rating input:checked + label:hover,
+.rating input:checked ~ label:hover,
+.rating label:hover ~ input:checked ~ label,
+.rating input:checked ~ label:hover ~ label {
+    color: #ffc107;
+}
+
+/* Affichage des étoiles pour les avis existants */
+.rating-display {
+    display: flex;
+    gap: 2px;
+}
+
+.star-filled {
+    color: #ffd700;
+    font-size: 16px;
+}
+
+.star-empty {
+    color: #ddd;
+    font-size: 16px;
+}
+
+/* Google-like compact sentiment bars */
+.google-like-stats .sentiment-rows { margin-top: 6px; }
+.sentiment-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sentiment-emoji { font-size: 18px; width: 22px; text-align: center; }
+.sentiment-bar { flex: 1; height: 8px; background: #f1f3f4; border-radius: 4px; overflow: hidden; }
+.sentiment-fill { height: 100%; border-radius: 4px; transition: width .3s ease; }
+.sentiment-fill.pos { background: #34a853; }
+.sentiment-fill.neu { background: #fbbc04; }
+.sentiment-fill.neg { background: #ea4335; }
+.sentiment-pct { width: 40px; text-align: right; color: #6c757d; }
+
+/* Animation pour le texte de notation */
+.rating-text {
+    min-height: 20px;
+    transition: all 0.3s ease;
+}
+
 @keyframes pulse {
     0% { transform: scale(0.95); opacity: 0.7; }
     50% { transform: scale(1.1); opacity: 1; }
@@ -357,6 +542,10 @@
     
     .card-body {
         padding: 1.5rem !important;
+    }
+    
+    .rating label {
+        font-size: 30px;
     }
 }
 
@@ -467,5 +656,65 @@ function submitParticipation() {
         }
     });
 }
+
+// Fonction pour afficher le modal de feedback
+function showFeedbackModal(eventId) {
+    const modal = new bootstrap.Modal(document.getElementById(`feedbackModal-${eventId}`));
+    modal.show();
+}
+
+// Gestion des formulaires de feedback
+document.addEventListener('DOMContentLoaded', function() {
+    // Appliquer les largeurs des barres de progression (éviter inline style)
+    document.querySelectorAll('.progress-bar[data-pct]').forEach(el => {
+        const pct = parseInt(el.getAttribute('data-pct') || '0', 10);
+        el.style.width = `${pct}%`;
+        el.setAttribute('aria-valuenow', String(pct));
+        el.setAttribute('aria-valuemin', '0');
+        el.setAttribute('aria-valuemax', '100');
+    });
+    // Plus de synchronisation étoiles (feedback basé sur le texte)
+
+    document.querySelectorAll('.feedback-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Envoi...';
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const modalElement = this.closest('.modal');
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    modal.hide();
+                    
+                    // Afficher un message de succès
+                    alert('Merci pour votre avis !');
+                    location.reload();
+                } else {
+                    alert(data.message || 'Une erreur est survenue lors de l\'envoi de votre avis.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Une erreur est survenue. Veuillez réessayer.');
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-send"></i> Envoyer';
+            });
+        });
+    });
+});
 </script>
 {% endblock %}

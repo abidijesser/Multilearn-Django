@@ -89,6 +89,8 @@
                         </div>
                     </div>
 
+                    
+
                     {% if event.description %}
                     <p class="event-description small text-muted mb-3">
                         {{ event.description|truncatewords:15 }}
@@ -137,6 +139,179 @@
     {% endfor %}
 </div>
 
+<!-- Section Feedback: cartes par événement style Google -->
+<div class="mt-5">
+    <h4 class="mb-4"><i class="bi bi-graph-up-arrow"></i> Analyse des avis par événement (IA)</h4>
+    <div class="row g-4">
+                {% for event in events %}
+                {% with stats=event.feedback_stats %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card feedback-stats-card h-100">
+                <div class="card-body p-4">
+                    <!-- Header avec titre et note moyenne -->
+                    <div class="d-flex justify-content-between align-items-start mb-4">
+                        <h5 class="mb-0 fw-bold" style="max-width:65%; color: #202124;">{{ event.title }}</h5>
+                        <div class="text-end">
+                            <div class="rating-display-large mb-1">
+                                {% for i in "12345" %}
+                                    {% if i|add:0 <= stats.avg %}
+                                        <span class="star-filled-large">★</span>
+                                    {% else %}
+                                        <span class="star-empty-large">☆</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <div class="d-flex align-items-baseline justify-content-end">
+                                <span class="fs-4 fw-bold text-dark me-1">{{ stats.avg|default:0|floatformat:1 }}</span>
+                                <span class="text-muted">/ 5.0</span>
+                            </div>
+                            <small class="text-muted d-block">{{ stats.total|default:0 }} avis</small>
+                        </div>
+                    </div>
+
+                    <!-- Analyse IA des sentiments avec smileys style Google -->
+                    <div class="sentiment-analysis-section mb-4">
+                        <h6 class="text-muted text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px; font-weight: 600;">
+                            <i class="bi bi-robot"></i> Analyse IA des sentiments
+                        </h6>
+                        
+                        <!-- Positif -->
+                        <div class="sentiment-item mb-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="sentiment-emoji me-2">😀</span>
+                                    <span class="sentiment-label fw-semibold">Positif</span>
+                                </div>
+                                <div class="d-flex align-items-baseline">
+                                    <span class="sentiment-value fw-bold me-1" style="color: #34a853;">{{ stats.sentiment.pos|default:0|floatformat:1 }}</span>
+                                    <span class="sentiment-percentage text-muted">({{ stats.sentiment_pct.pos|default:0|floatformat:1 }}%)</span>
+                                </div>
+                            </div>
+                            <div class="sentiment-progress-wrapper">
+                                <div class="sentiment-progress-bar sentiment-positive" style="width: {{ stats.sentiment_pct.pos|default:0|floatformat:1 }}%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Neutre -->
+                        <div class="sentiment-item mb-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="sentiment-emoji me-2">😐</span>
+                                    <span class="sentiment-label fw-semibold">Neutre</span>
+                                </div>
+                                <div class="d-flex align-items-baseline">
+                                    <span class="sentiment-value fw-bold me-1" style="color: #fbbc04;">{{ stats.sentiment.neu|default:0|floatformat:1 }}</span>
+                                    <span class="sentiment-percentage text-muted">({{ stats.sentiment_pct.neu|default:0|floatformat:1 }}%)</span>
+                                </div>
+                            </div>
+                            <div class="sentiment-progress-wrapper">
+                                <div class="sentiment-progress-bar sentiment-neutral" style="width: {{ stats.sentiment_pct.neu|default:0|floatformat:1 }}%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Négatif -->
+                        <div class="sentiment-item mb-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="sentiment-emoji me-2">😠</span>
+                                    <span class="sentiment-label fw-semibold">Négatif</span>
+                                </div>
+                                <div class="d-flex align-items-baseline">
+                                    <span class="sentiment-value fw-bold me-1" style="color: #ea4335;">{{ stats.sentiment.neg|default:0|floatformat:1 }}</span>
+                                    <span class="sentiment-percentage text-muted">({{ stats.sentiment_pct.neg|default:0|floatformat:1 }}%)</span>
+                                </div>
+                            </div>
+                            <div class="sentiment-progress-wrapper">
+                                <div class="sentiment-progress-bar sentiment-negative" style="width: {{ stats.sentiment_pct.neg|default:0|floatformat:1 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Répartition par étoiles style Google -->
+                    <div class="rating-breakdown pt-3 border-top">
+                        <h6 class="text-muted text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px; font-weight: 600;">
+                            Répartition des notes
+                        </h6>
+                        <div class="rating-bar-list">
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">5★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.5|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.5|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.5|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">4★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.4|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.4|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.4|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">3★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.3|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.3|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.3|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">2★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.2|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.2|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.2|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">1★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.1|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.1|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.1|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+                {% endwith %}
+                {% endfor %}
+    </div>
+</div>
 <!-- Modal Formulaire -->
 <div class="modal fade" id="eventFormModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -235,6 +410,136 @@
     padding: 0 1.25rem 1.25rem;
     border-top: 1px solid #f8f9fa;
     padding-top: 1rem;
+}
+
+/* Styles pour les statistiques de feedback style Google */
+.feedback-stats-card {
+    border: 1px solid #e8eaed;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #fff;
+}
+
+.feedback-stats-card:hover {
+    box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+    transform: translateY(-2px);
+}
+
+/* Rating display large */
+.rating-display-large {
+    display: flex;
+    gap: 2px;
+    justify-content: flex-end;
+}
+
+.star-filled-large {
+    color: #fbbc04;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.star-empty-large {
+    color: #dadce0;
+    font-size: 18px;
+    line-height: 1;
+}
+
+/* Sentiment analysis section */
+.sentiment-analysis-section {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #e8eaed;
+}
+
+.sentiment-item {
+    background: white;
+    padding: 0.75rem;
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.sentiment-item:hover {
+    background: #f8f9fa;
+}
+
+.sentiment-emoji {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.sentiment-label {
+    color: #5f6368;
+    font-size: 0.875rem;
+}
+
+.sentiment-value {
+    font-size: 1.125rem;
+    line-height: 1;
+}
+
+.sentiment-percentage {
+    font-size: 0.875rem;
+}
+
+/* Progress bars style Google */
+.sentiment-progress-wrapper {
+    height: 6px;
+    background-color: #f1f3f4;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.sentiment-progress-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.sentiment-positive {
+    background-color: #34a853;
+}
+
+.sentiment-neutral {
+    background-color: #fbbc04;
+}
+
+.sentiment-negative {
+    background-color: #ea4335;
+}
+
+/* Rating breakdown style Google */
+.rating-breakdown {
+    border-top: 1px solid #e8eaed;
+}
+
+.rating-star-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #5f6368;
+    min-width: 30px;
+}
+
+.rating-bar-bg {
+    height: 10px;
+    background-color: #f1f3f4;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.rating-bar-fill {
+    height: 100%;
+    background-color: #fbbc04;
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+.rating-bar-value {
+    font-size: 0.875rem;
+    color: #5f6368;
 }
 
 /* Animation de pulsation pour les nouveaux événements */
@@ -418,13 +723,13 @@ function initEventFormBehaviour(){
         var form = $(this);
         var url = form.attr('action') || "{% url 'event_create' %}";
 
-        // client-side date validation
+        // client-side date validation (start must not be in the past)
         var start = $('#id_start_time').val();
         var end = $('#id_end_time').val();
         var now = new Date();
         if (start){
             var s = new Date(start);
-            if (s < now){ return showFormError('La date de début ne peut pas être dans le passé'); }
+            if (s < now){ return showFormError('La date de début ne doit pas être dans le passé'); }
         }
         if (start && end){
             if (new Date(end) <= new Date(start)){ return showFormError('La date de fin doit être après la date de début'); }

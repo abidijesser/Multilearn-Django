@@ -6,8 +6,37 @@ from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from django import forms
 from django.http import JsonResponse
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult ,Event, Participation
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult ,Event, Participation, Feedback
 import json
+from django.views.decorators.csrf import csrf_exempt
+from transformers import pipeline
+import os
+import requests
+from django.core.files.base import ContentFile
+# ---------- IA Image Generation Helper ----------
+def generate_event_image(title: str, description: str):
+    """
+    Try to generate an image via Hugging Face Inference API using the title/description.
+    Returns raw image bytes on success, or None otherwise.
+    Requires env var HF_API_TOKEN. Uses a general SD model endpoint.
+    """
+    api_token = os.getenv('HF_API_TOKEN')
+    if not api_token:
+        return None
+    prompt = f"Event poster, professional, modern, clean, high quality, '{title}'. {description[:200]}"
+    try:
+        resp = requests.post(
+            'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2',
+            headers={'Authorization': f'Bearer {api_token}'},
+            json={'inputs': prompt},
+            timeout=30
+        )
+        if resp.status_code == 200 and resp.content:
+            return resp.content
+    except Exception:
+        return None
+    return None
+
 
 
 # ============= Pages publiques =============
@@ -651,18 +680,36 @@ def quiz_result_detail(request, result_id):
 class EventForm(forms.ModelForm):
     class Meta:
         model = Event
-        fields = ['title', 'description', 'start_time', 'end_time', 'location', 'is_online']
+        fields = ['title', 'description', 'start_time', 'end_time', 'location', 'is_online', 'image', 'max_participants']
         widgets = {
             'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
             'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
         }
 
+    def clean(self):
+        cleaned_data = super().clean()
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+        now = timezone.now()
+
+        # Autoriser "maintenant" et le futur, interdire le passé
+        if start_time and start_time < now:
+            self.add_error('start_time', "La date de début ne doit pas être dans le passé.")
+
+        # La date de fin doit être après la date de début
+        if start_time and end_time and end_time <= start_time:
+            self.add_error('end_time', "La date de fin doit être après la date de début.")
+
+        return cleaned_data
+
+
+
 # ---------- Vues pour les événements ----------
 def event_list(request):
-    """Vue publique qui affiche tous les événements à venir"""
+    """Vue publique qui affiche tous les événements (passés, en cours et futurs)"""
     current_time = timezone.now()
-    # Ne récupérer que les événements futurs
-    events = Event.objects.filter(end_time__gte=current_time).order_by('start_time')
+    # Récupérer tous les événements (passés, en cours et futurs)
+    events = Event.objects.all().order_by('-start_time')
     
     # Filtres
     event_type = request.GET.get('type')
@@ -678,11 +725,78 @@ def event_list(request):
             Q(location__icontains=search)
         )
     
+    participated_event_ids = []
+    if request.user.is_authenticated:
+        participated_event_ids = list(
+            Participation.objects.filter(user=request.user)
+            .values_list('event_id', flat=True)
+        )
+
+    # Calcul des statistiques d'avis par événement
+    feedback_stats = {}
+    if events.exists():
+        event_ids = list(events.values_list('id', flat=True))
+        feedback_qs = Feedback.objects.filter(event_id__in=event_ids)
+        # Pré-initialiser
+        for eid in event_ids:
+            feedback_stats[eid] = {
+                'total': 0,
+                'avg': 0.0,
+                'ratings': {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                'ratings_pct': {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0},
+                'sentiment': {'pos': 0, 'neu': 0, 'neg': 0},
+                'sentiment_pct': {'pos': 0.0, 'neu': 0.0, 'neg': 0.0},
+                'breakdown': [],  # list of dicts: {'star': int, 'pct': float}
+            }
+        # Remplir les comptes par note
+        for fb in feedback_qs.values('event_id', 'rating', 'sentiment_score'):
+            eid = fb['event_id']
+            rating = int(fb['rating']) if fb['rating'] else 0
+            feedback_stats[eid]['total'] += 1
+            if rating in feedback_stats[eid]['ratings']:
+                feedback_stats[eid]['ratings'][rating] += 1
+            score = fb.get('sentiment_score')
+            if score is not None:
+                if score >= 0.6:
+                    feedback_stats[eid]['sentiment']['pos'] += 1
+                elif score < 0.4:
+                    feedback_stats[eid]['sentiment']['neg'] += 1
+                else:
+                    feedback_stats[eid]['sentiment']['neu'] += 1
+        # Moyennes et pourcentages
+        for eid, stats in feedback_stats.items():
+            total = stats['total']
+            if total > 0:
+                s = sum(star * count for star, count in stats['ratings'].items())
+                stats['avg'] = round(s / total, 1)
+                for star, count in stats['ratings'].items():
+                    stats['ratings_pct'][star] = round(count * 100.0 / total, 1)
+                pos = stats['sentiment']['pos']
+                neu = stats['sentiment']['neu']
+                neg = stats['sentiment']['neg']
+                stats['sentiment_pct']['pos'] = round(pos * 100.0 / total, 1)
+                stats['sentiment_pct']['neu'] = round(neu * 100.0 / total, 1)
+                stats['sentiment_pct']['neg'] = round(neg * 100.0 / total, 1)
+                # Construct ordered breakdown 5 -> 1
+                stats['breakdown'] = [
+                    {'star': star, 'pct': stats['ratings_pct'][star]}
+                    for star in [5,4,3,2,1]
+                ]
+
+        # Attacher les stats sur chaque objet event pour un accès simple dans le template
+        events_map = {e.id: e for e in events}
+        for eid, stats in feedback_stats.items():
+            evt = events_map.get(eid)
+            if evt is not None:
+                setattr(evt, 'feedback_stats', stats)
+
     context = {
         'events': events,
         'current_filter': event_type,
         'search_query': search,
-         'now': current_time
+        'now': current_time,
+        'participated_event_ids': participated_event_ids,
+        'feedback_stats': feedback_stats,
     }
     return render(request, 'events_front.html', context)
 
@@ -701,7 +815,22 @@ def event_create(request):
         if form.is_valid():
             event = form.save(commit=False)
             event.created_by = request.user
+            # Validation: start_time must NOT be in the past (allow now and future)
+            if event.start_time < timezone.now():
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'status': 'error', 'errors': {'start_time': ["La date de début ne doit pas être dans le passé."]}}, status=400)
+                messages.error(request, "La date de début ne doit pas être dans le passé.")
+                return render(request, 'events_admin.html', {'form': form})
+
             event.save()
+            # Image upload or AI generation
+            if 'image' in request.FILES:
+                event.image = request.FILES['image']
+                event.save(update_fields=['image'])
+            else:
+                img_bytes = generate_event_image(event.title, event.description or '')
+                if img_bytes:
+                    event.image.save(f"event_{event.id}.png", ContentFile(img_bytes), save=True)
             
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({
@@ -739,7 +868,16 @@ def event_edit(request, event_id):
     if request.method == 'POST':
         form = EventForm(request.POST, instance=event)
         if form.is_valid():
-            form.save()
+            updated = form.save(commit=False)
+            if updated.start_time < timezone.now():
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'status': 'error', 'errors': {'start_time': ["La date de début ne doit pas être dans le passé."]}}, status=400)
+                messages.error(request, 'La date de début ne doit pas être dans le passé.')
+                return render(request, 'event_form.html', {'form': form, 'event': event})
+            updated.save()
+            if 'image' in request.FILES:
+                updated.image = request.FILES['image']
+                updated.save(update_fields=['image'])
             
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({
@@ -794,6 +932,12 @@ def participate_event(request, event_id):
             'status': 'error',
             'message': 'Événement terminé'
         })
+    # Vérifier capacité
+    if event.max_participants is not None and event.participants.count() >= event.max_participants:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Événement complet'
+        }, status=400)
     
     # Créer la participation si elle n'existe pas
     participation, created = Participation.objects.get_or_create(
@@ -823,11 +967,64 @@ def events_admin(request):
     
     # Récupérer tous les événements
     events = Event.objects.all().order_by('-start_time')
-    
+
+    # Calculer stats feedback par événement (même logique que front)
+    feedback_stats = {}
+    if events.exists():
+        event_ids = list(events.values_list('id', flat=True))
+        feedback_qs = Feedback.objects.filter(event_id__in=event_ids)
+        for eid in event_ids:
+            feedback_stats[eid] = {
+                'total': 0,
+                'avg': 0.0,
+                'ratings': {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                'ratings_pct': {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0},
+                'sentiment': {'pos': 0, 'neu': 0, 'neg': 0},
+                'sentiment_pct': {'pos': 0.0, 'neu': 0.0, 'neg': 0.0},
+                'breakdown': [],
+            }
+        for fb in feedback_qs.values('event_id', 'rating', 'sentiment_score'):
+            eid = fb['event_id']
+            rating = int(fb['rating']) if fb['rating'] else 0
+            feedback_stats[eid]['total'] += 1
+            if rating in feedback_stats[eid]['ratings']:
+                feedback_stats[eid]['ratings'][rating] += 1
+            score = fb.get('sentiment_score')
+            if score is not None:
+                if score >= 0.6:
+                    feedback_stats[eid]['sentiment']['pos'] += 1
+                elif score < 0.4:
+                    feedback_stats[eid]['sentiment']['neg'] += 1
+                else:
+                    feedback_stats[eid]['sentiment']['neu'] += 1
+        for eid, stats in feedback_stats.items():
+            total = stats['total']
+            if total > 0:
+                s = sum(star * count for star, count in stats['ratings'].items())
+                stats['avg'] = round(s / total, 1)
+                for star, count in stats['ratings'].items():
+                    stats['ratings_pct'][star] = round(count * 100.0 / total, 1)
+                pos = stats['sentiment']['pos']
+                neu = stats['sentiment']['neu']
+                neg = stats['sentiment']['neg']
+                stats['sentiment_pct']['pos'] = round(pos * 100.0 / total, 1)
+                stats['sentiment_pct']['neu'] = round(neu * 100.0 / total, 1)
+                stats['sentiment_pct']['neg'] = round(neg * 100.0 / total, 1)
+                stats['breakdown'] = [
+                    {'star': star, 'pct': stats['ratings_pct'][star]}
+                    for star in [5,4,3,2,1]
+                ]
+
+        # Attacher sur chaque event
+        events_map = {e.id: e for e in events}
+        for eid, stats in feedback_stats.items():
+            evt = events_map.get(eid)
+            if evt is not None:
+                setattr(evt, 'feedback_stats', stats)
+
     return render(request, 'events_admin.html', {
         'events': events,
-        'now': timezone.now()  # ← AJOUTEZ CETTE LIGNE
-
+        'now': timezone.now(),
     })
 
 @login_required
@@ -875,3 +1072,89 @@ def update_participation_status(request, event_id, user_id):
             messages.success(request, f"Statut mis à jour pour {participation.user.username}")
         
         return redirect('event_participants', event_id=event_id)
+    
+    # Déplacer cette fonction au même niveau que les autres vues (pas à l'intérieur d'une autre fonction)
+
+@login_required
+def create_test_finished_event(request):
+    """Créer un événement de test déjà terminé et inscrire l'utilisateur courant"""
+    now = timezone.now()
+    event = Event.objects.create(
+        title=f"Événement Test Terminé {now.strftime('%Y-%m-%d %H:%M:%S')}",
+        description="Événement de test pour le feedback",
+        start_time=now - timezone.timedelta(hours=2),
+        end_time=now - timezone.timedelta(minutes=1),
+        location="Salle virtuelle",
+        is_online=True,
+        created_by=request.user,
+    )
+
+    # Inscrire l'utilisateur courant comme participant pour afficher le bouton feedback
+    Participation.objects.get_or_create(user=request.user, event=event, defaults={'status': 'REGISTERED'})
+
+    messages.success(request, f'Événement de test créé: "{event.title}". Il est déjà terminé. Vous pouvez donner un avis.')
+    return redirect('event_list')
+@login_required
+@csrf_exempt
+def submit_feedback(request, event_id):
+    if request.method == 'POST':
+        try:
+            event = Event.objects.get(id=event_id)
+        except Event.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Événement introuvable.'}, status=404)
+
+        # Autoriser l'avis si l'utilisateur a participé OU si l'événement est terminé
+        has_participated = Participation.objects.filter(user=request.user, event=event, status__in=['REGISTERED', 'CONFIRMED']).exists()
+        if not has_participated and event.end_time >= timezone.now():
+            return JsonResponse({'status': 'error', 'message': 'Vous pourrez donner un avis à la fin de l\'événement.'}, status=403)
+
+        rating_raw = request.POST.get('rating')
+        rating = int(rating_raw) if rating_raw and rating_raw.isdigit() else None
+        comment = request.POST.get('comment', '').strip()
+
+        if not comment:
+            return JsonResponse({'status': 'error', 'message': 'Veuillez saisir un avis (texte) pour l’analyse IA.'}, status=400)
+
+        # Analyse du sentiment avec Hugging Face (multilingue)
+        # Ce modèle retourne: {'label': '5 stars', 'score': 0.xxx} ou {'label': '1 star', 'score': 0.xxx}
+        sentiment_score = 0.5  # Par défaut neutre
+        if comment:
+            try:
+                sentiment_analyzer = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+                sentiment_result = sentiment_analyzer(comment[:512])
+                # Le résultat est une liste avec dict: {'label': '5 stars', 'score': 0.xxx}
+                if sentiment_result and len(sentiment_result) > 0:
+                    result = sentiment_result[0]
+                    label = result.get('label', '')
+                    score = float(result.get('score', 0.5))
+                    
+                    # Convertir le label en sentiment_score basé sur les étoiles
+                    # 5 stars -> positif (> 0.8), 4 stars -> plutôt positif (> 0.6)
+                    # 3 stars -> neutre (0.4-0.6), 2-1 stars -> négatif (< 0.4)
+                    if '5 stars' in label:
+                        sentiment_score = 0.9
+                    elif '4 stars' in label:
+                        sentiment_score = 0.7
+                    elif '3 stars' in label:
+                        sentiment_score = 0.5
+                    elif '2 stars' in label:
+                        sentiment_score = 0.3
+                    elif '1 star' in label:
+                        sentiment_score = 0.1
+                    else:
+                        sentiment_score = score
+                    
+                    print(f"[DEBUG] Comment: '{comment[:50]}...' | Label: {label} | Score: {sentiment_score} | Original: {score}")
+            except Exception as e:
+                print(f"[ERROR] Sentiment analysis failed: {e}")
+                sentiment_score = 0.5
+
+        Feedback.objects.update_or_create(
+            user=request.user,
+            event=event,
+            defaults={'rating': rating, 'comment': comment, 'sentiment_score': sentiment_score}
+        )
+
+        return JsonResponse({'status': 'success', 'message': 'Merci pour votre avis !'})
+
+    return JsonResponse({'status': 'error', 'message': 'Méthode non autorisée.'}, status=405)

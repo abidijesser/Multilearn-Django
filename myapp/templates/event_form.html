@@ -1,4 +1,4 @@
-<form id="eventForm" method="post" action="{% if event %}{% url 'event_edit' event.id %}{% else %}{% url 'event_create' %}{% endif %}">
+<form id="eventForm" method="post" enctype="multipart/form-data" action="{% if event %}{% url 'event_edit' event.id %}{% else %}{% url 'event_create' %}{% endif %}">
     {% csrf_token %}
 
     <div id="formErrors"></div>
@@ -42,8 +42,48 @@
         <div class="invalid-feedback"></div>
     </div>
 
+    <div class="mb-3">
+        <label for="id_image" class="form-label">Image de l'événement (optionnel)</label>
+        <input type="file" class="form-control" id="id_image" name="image" accept="image/*">
+        <div class="invalid-feedback"></div>
+        {% if event and event.image %}
+        <small class="text-muted d-block mt-1">Image actuelle: <a href="{{ event.image.url }}" target="_blank">voir</a></small>
+        {% endif %}
+    </div>
+
+    <div class="mb-3">
+        <label for="id_max_participants" class="form-label">Nombre maximum de participants</label>
+        <input type="number" min="1" class="form-control" id="id_max_participants" name="max_participants" value="{{ event.max_participants|default:form.max_participants.value|default:'' }}" placeholder="Illimité si vide">
+        <div class="invalid-feedback"></div>
+    </div>
+
     <div class="d-flex justify-content-end gap-2">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
         <button type="submit" class="btn btn-primary">{% if event %}Modifier{% else %}Enregistrer{% endif %}</button>
     </div>
 </form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const startInput = document.getElementById('id_start_time');
+    const endInput = document.getElementById('id_end_time');
+
+    const toLocalDatetime = (d) => {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const now = new Date();
+    if (startInput && !startInput.min) startInput.min = toLocalDatetime(now);
+    if (endInput && !endInput.min) endInput.min = toLocalDatetime(now);
+
+    startInput?.addEventListener('change', () => {
+        if (!endInput) return;
+        const minForEnd = startInput.value || toLocalDatetime(new Date());
+        endInput.min = minForEnd;
+        if (endInput.value && endInput.value < minForEnd) {
+            endInput.value = minForEnd;
+        }
+    });
+});
+</script>
