@@ -49,4 +49,24 @@ path('courses/<int:course_id>/quiz/generate_ai/', generate_quiz_view, name='gene
     
     # API pour détection de contenu
     path('api/check-content/', views.check_content_api, name='check_content_api'),
+    # ==================== Événements ====================
+
+path('events/', views.event_list, name='event_list'),
+path('events/create/', views.event_create, name='event_create'),
+path('events/<int:event_id>/', views.event_detail, name='event_detail'),
+path('events/<int:event_id>/edit/', views.event_edit, name='event_edit'),
+path('events/<int:event_id>/delete/', views.event_delete, name='event_delete'),
+path('dashboard/events/', views.events_admin, name='events_admin'),  # Changed from admin/events/
+path('dashboard/events/create/', views.event_create, name='event_create'),
+path('dashboard/events/<int:event_id>/edit/', views.event_edit, name='event_edit'),
+path('dashboard/events/<int:event_id>/delete/', views.event_delete, name='event_delete'),
+path('events/<int:event_id>/feedback/', views.submit_feedback, name='submit_feedback'),
+
+# Utilitaire de test: créer un événement terminé et s'inscrire
+path('events/create-test-finished/', views.create_test_finished_event, name='create_test_finished_event'),
+
+# Participation
+path('events/<int:event_id>/participate/', views.participate_event, name='participate_event'),
+path('dashboard/events/<int:event_id>/participants/', views.event_participants, name='event_participants'),
+path('dashboard/events/<int:event_id>/participants/<int:user_id>/update/', views.update_participation_status, name='update_participation_status'),
 ]

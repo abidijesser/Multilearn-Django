@@ -1,0 +1,841 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des Événements{% endblock %}
+
+{% block content %}
+<!-- Assure-toi que jQuery & Bootstrap JS sont chargés dans base.html; si non, garde cette ligne -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<div class="container my-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0"><i class="bi bi-calendar-event"></i> Gestion des événements</h1>
+            <small class="text-muted d-block">Créer, modifier ou supprimer vos événements</small>
+        </div>
+        <div class="d-flex gap-2">
+            <input id="eventsSearch" class="form-control form-control-sm" style="min-width:260px;" placeholder="Rechercher par titre ou lieu">
+            <select id="eventsType" class="form-select form-select-sm">
+                <option value="">Tous types</option>
+                <option value="online">En ligne</option>
+                <option value="offline">Présentiel</option>
+            </select>
+            <button type="button" class="btn btn-success" onclick="loadCreateForm()">
+                <i class="bi bi-plus-circle"></i> Nouvel Événement
+            </button>
+        </div>
+    </div>
+
+ <div id="eventsGrid" class="row g-4">
+    {% for event in events %}
+    <div class="col-sm-12 col-md-6 col-lg-4 event-tile" data-type="{% if event.is_online %}online{% else %}offline{% endif %}">
+        <article class="card event-card h-100">
+            <!-- NOUVEAU : Image d'en-tête -->
+            <div class="event-header position-relative">
+                {% if event.is_online %}
+                <div class="event-image online-event">
+                    <i class="bi bi-laptop"></i>
+                </div>
+                {% else %}
+                <div class="event-image offline-event">
+                    <i class="bi bi-geo-alt"></i>
+                </div>
+                {% endif %}
+                <div class="event-badge">
+                    <span class="badge {% if event.is_online %}bg-info{% else %}bg-warning{% endif %}">
+                        {% if event.is_online %}
+                        <i class="bi bi-wifi"></i> En ligne
+                        {% else %}
+                        <i class="bi bi-building"></i> Présentiel
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="card-body d-flex flex-column">
+                <div class="event-content">
+                    <h5 class="card-title mb-2">{{ event.title }}</h5>
+                    
+                    <!-- NOUVEAU : Métadonnées améliorées -->
+                    <div class="event-meta mb-3">
+                        <!-- Indicateur de statut -->
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="status-indicator {% if event.start_time > now %}upcoming{% else %}ongoing{% endif %} me-2"></div>
+                            <small class="text-muted">
+                                {% if event.start_time > now %}
+                                <i class="bi bi-clock text-warning"></i> À venir
+                                {% else %}
+                                <i class="bi bi-play-circle text-success"></i> En cours
+                                {% endif %}
+                            </small>
+                        </div>
+                        
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-calendar-event text-primary me-2"></i>
+                            <small class="text-muted">
+                                {{ event.start_time|date:"d M" }} • {{ event.start_time|date:"H:i" }}
+                            </small>
+                        </div>
+                        
+                        {% if not event.is_online and event.location %}
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-geo-alt text-danger me-2"></i>
+                            <small class="text-muted">{{ event.location|truncatewords:3 }}</small>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-people text-success me-2"></i>
+                            <small class="text-muted">{{ event.participants.count }} participants</small>
+                        </div>
+                    </div>
+
+                    
+
+                    {% if event.description %}
+                    <p class="event-description small text-muted mb-3">
+                        {{ event.description|truncatewords:15 }}
+                    </p>
+                    {% endif %}
+                </div>
+
+                <!-- NOUVEAU : Actions améliorées -->
+                <div class="event-actions mt-auto">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="participants-count">
+                            <span class="badge bg-light text-dark">
+                                <i class="bi bi-person-fill"></i> {{ event.participants.count }}
+                            </span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-info" title="Voir les participants" 
+                                    onclick="viewParticipants('{{ event.id }}')">
+                                <i class="bi bi-people-fill"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning" title="Modifier" 
+                                    onclick="editEvent('{{ event.id }}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form method="post" action="{% url 'event_delete' event.id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                        title="Supprimer" onclick="return confirm('Supprimer cet événement ?')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </article>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-info text-center">
+            <i class="bi bi-calendar-x display-4 d-block mb-3"></i>
+            <h5>Aucun événement pour le moment</h5>
+            <p class="mb-0">Créez votre premier événement en cliquant sur le bouton ci-dessus</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Section Feedback: cartes par événement style Google -->
+<div class="mt-5">
+    <h4 class="mb-4"><i class="bi bi-graph-up-arrow"></i> Analyse des avis par événement (IA)</h4>
+    <div class="row g-4">
+                {% for event in events %}
+                {% with stats=event.feedback_stats %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card feedback-stats-card h-100">
+                <div class="card-body p-4">
+                    <!-- Header avec titre et note moyenne -->
+                    <div class="d-flex justify-content-between align-items-start mb-4">
+                        <h5 class="mb-0 fw-bold" style="max-width:65%; color: #202124;">{{ event.title }}</h5>
+                        <div class="text-end">
+                            <div class="rating-display-large mb-1">
+                                {% for i in "12345" %}
+                                    {% if i|add:0 <= stats.avg %}
+                                        <span class="star-filled-large">★</span>
+                                    {% else %}
+                                        <span class="star-empty-large">☆</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <div class="d-flex align-items-baseline justify-content-end">
+                                <span class="fs-4 fw-bold text-dark me-1">{{ stats.avg|default:0|floatformat:1 }}</span>
+                                <span class="text-muted">/ 5.0</span>
+                            </div>
+                            <small class="text-muted d-block">{{ stats.total|default:0 }} avis</small>
+                        </div>
+                    </div>
+
+                    <!-- Analyse IA des sentiments avec smileys style Google -->
+                    <div class="sentiment-analysis-section mb-4">
+                        <h6 class="text-muted text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px; font-weight: 600;">
+                            <i class="bi bi-robot"></i> Analyse IA des sentiments
+                        </h6>
+                        
+                        <!-- Positif -->
+                        <div class="sentiment-item mb-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="sentiment-emoji me-2">😀</span>
+                                    <span class="sentiment-label fw-semibold">Positif</span>
+                                </div>
+                                <div class="d-flex align-items-baseline">
+                                    <span class="sentiment-value fw-bold me-1" style="color: #34a853;">{{ stats.sentiment.pos|default:0|floatformat:1 }}</span>
+                                    <span class="sentiment-percentage text-muted">({{ stats.sentiment_pct.pos|default:0|floatformat:1 }}%)</span>
+                                </div>
+                            </div>
+                            <div class="sentiment-progress-wrapper">
+                                <div class="sentiment-progress-bar sentiment-positive" style="width: {{ stats.sentiment_pct.pos|default:0|floatformat:1 }}%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Neutre -->
+                        <div class="sentiment-item mb-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="sentiment-emoji me-2">😐</span>
+                                    <span class="sentiment-label fw-semibold">Neutre</span>
+                                </div>
+                                <div class="d-flex align-items-baseline">
+                                    <span class="sentiment-value fw-bold me-1" style="color: #fbbc04;">{{ stats.sentiment.neu|default:0|floatformat:1 }}</span>
+                                    <span class="sentiment-percentage text-muted">({{ stats.sentiment_pct.neu|default:0|floatformat:1 }}%)</span>
+                                </div>
+                            </div>
+                            <div class="sentiment-progress-wrapper">
+                                <div class="sentiment-progress-bar sentiment-neutral" style="width: {{ stats.sentiment_pct.neu|default:0|floatformat:1 }}%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Négatif -->
+                        <div class="sentiment-item mb-3">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="sentiment-emoji me-2">😠</span>
+                                    <span class="sentiment-label fw-semibold">Négatif</span>
+                                </div>
+                                <div class="d-flex align-items-baseline">
+                                    <span class="sentiment-value fw-bold me-1" style="color: #ea4335;">{{ stats.sentiment.neg|default:0|floatformat:1 }}</span>
+                                    <span class="sentiment-percentage text-muted">({{ stats.sentiment_pct.neg|default:0|floatformat:1 }}%)</span>
+                                </div>
+                            </div>
+                            <div class="sentiment-progress-wrapper">
+                                <div class="sentiment-progress-bar sentiment-negative" style="width: {{ stats.sentiment_pct.neg|default:0|floatformat:1 }}%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Répartition par étoiles style Google -->
+                    <div class="rating-breakdown pt-3 border-top">
+                        <h6 class="text-muted text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.5px; font-weight: 600;">
+                            Répartition des notes
+                        </h6>
+                        <div class="rating-bar-list">
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">5★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.5|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.5|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.5|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">4★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.4|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.4|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.4|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">3★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.3|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.3|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.3|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">2★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.2|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.2|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.2|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="rating-bar-item mb-2">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="rating-star-text">1★</span>
+                                    <div class="d-flex align-items-center flex-grow-1 mx-3">
+                                        <div class="rating-bar-bg flex-grow-1 me-2">
+                                            <div class="rating-bar-fill" style="width: {{ stats.ratings_pct.1|default:0|floatformat:1 }}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="rating-bar-value text-end" style="min-width: 60px;">
+                                        <span class="fw-semibold">{{ stats.ratings.1|default:0 }}</span>
+                                        <span class="text-muted ms-1">({{ stats.ratings_pct.1|default:0|floatformat:1 }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+                {% endwith %}
+                {% endfor %}
+    </div>
+</div>
+<!-- Modal Formulaire -->
+<div class="modal fade" id="eventFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventFormTitle">Nouvel événement</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body" id="eventFormContainer">
+                <!-- formulaire chargé par AJAX -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+
+/* Styles améliorés pour les événements */
+.event-card { 
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
+}
+
+.event-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+
+.event-header {
+    height: 120px;
+    overflow: hidden;
+}
+
+.event-image {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    color: white;
+    position: relative;
+}
+
+.event-image::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+}
+
+.online-event {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.offline-event {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.event-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+}
+
+.event-content {
+    padding: 1.5rem 1.25rem 1rem;
+}
+
+.card-title {
+    color: #2c3e50;
+    font-weight: 700;
+    font-size: 1.1rem;
+    line-height: 1.4;
+    margin-bottom: 0.75rem;
+}
+
+.event-meta {
+    border-left: 3px solid #e9ecef;
+    padding-left: 12px;
+}
+
+.event-description {
+    border-top: 1px solid #f8f9fa;
+    padding-top: 0.75rem;
+    line-height: 1.5;
+}
+
+.event-actions {
+    padding: 0 1.25rem 1.25rem;
+    border-top: 1px solid #f8f9fa;
+    padding-top: 1rem;
+}
+
+/* Styles pour les statistiques de feedback style Google */
+.feedback-stats-card {
+    border: 1px solid #e8eaed;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #fff;
+}
+
+.feedback-stats-card:hover {
+    box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+    transform: translateY(-2px);
+}
+
+/* Rating display large */
+.rating-display-large {
+    display: flex;
+    gap: 2px;
+    justify-content: flex-end;
+}
+
+.star-filled-large {
+    color: #fbbc04;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.star-empty-large {
+    color: #dadce0;
+    font-size: 18px;
+    line-height: 1;
+}
+
+/* Sentiment analysis section */
+.sentiment-analysis-section {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #e8eaed;
+}
+
+.sentiment-item {
+    background: white;
+    padding: 0.75rem;
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.sentiment-item:hover {
+    background: #f8f9fa;
+}
+
+.sentiment-emoji {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.sentiment-label {
+    color: #5f6368;
+    font-size: 0.875rem;
+}
+
+.sentiment-value {
+    font-size: 1.125rem;
+    line-height: 1;
+}
+
+.sentiment-percentage {
+    font-size: 0.875rem;
+}
+
+/* Progress bars style Google */
+.sentiment-progress-wrapper {
+    height: 6px;
+    background-color: #f1f3f4;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.sentiment-progress-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.sentiment-positive {
+    background-color: #34a853;
+}
+
+.sentiment-neutral {
+    background-color: #fbbc04;
+}
+
+.sentiment-negative {
+    background-color: #ea4335;
+}
+
+/* Rating breakdown style Google */
+.rating-breakdown {
+    border-top: 1px solid #e8eaed;
+}
+
+.rating-star-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #5f6368;
+    min-width: 30px;
+}
+
+.rating-bar-bg {
+    height: 10px;
+    background-color: #f1f3f4;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.rating-bar-fill {
+    height: 100%;
+    background-color: #fbbc04;
+    border-radius: 5px;
+    transition: width 0.3s ease;
+}
+
+.rating-bar-value {
+    font-size: 0.875rem;
+    color: #5f6368;
+}
+
+/* Animation de pulsation pour les nouveaux événements */
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+
+.event-card.new-event {
+    animation: pulse-glow 2s infinite;
+}
+
+/* Badges animés */
+.badge {
+    animation: fadeIn 0.6s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Effet de surbrillance au survol */
+.event-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    transition: left 0.5s;
+}
+
+.event-card:hover::before {
+    left: 100%;
+}
+
+/* Indicateurs de statut */
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-indicator.upcoming {
+    background-color: #ffc107;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.ongoing {
+    background-color: #28a745;
+    animation: blink 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.7; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+
+/* Animation pour le compteur de participants */
+.participants-count {
+    position: relative;
+}
+
+.participants-count .badge {
+    transition: all 0.3s ease;
+}
+
+.participants-count:hover .badge {
+    transform: scale(1.1);
+    background-color: #0d6efd !important;
+    color: white !important;
+}
+
+/* Effet de focus pour les boutons */
+.btn-group .btn {
+    transition: all 0.2s ease;
+    border-radius: 8px;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .event-header {
+        height: 100px;
+    }
+    
+    .event-image {
+        font-size: 2rem;
+    }
+    
+    .event-content {
+        padding: 1rem;
+    }
+}
+
+/* Recherche et filtres */
+#eventsSearch { max-width:420px; }
+.event-tile { transition: transform .18s ease, opacity .18s ease; }
+.event-tile.hide { transform: translateY(8px); opacity:0; pointer-events:none; height:0; margin:0;padding:0;border:0; }
+.modal-content { border-radius:12px; }
+.invalid-feedback { display:none; color:#b02a37; }
+.is-invalid + .invalid-feedback { display:block; }
+</style>
+
+<script>
+// Recherche & filtre simple côté client
+$('#eventsSearch').on('input', function(){ filterEvents(); });
+$('#eventsType').on('change', function(){ filterEvents(); });
+
+function filterEvents(){
+    const q = $('#eventsSearch').val().toLowerCase();
+    const type = $('#eventsType').val();
+    $('.event-tile').each(function(){
+        const title = $(this).find('.card-title').text().toLowerCase();
+        const location = $(this).find('p').first().text().toLowerCase();
+        const matchesQuery = !q || title.includes(q) || location.includes(q);
+        const matchesType = !type || $(this).data('type') === type;
+        $(this).toggleClass('hide', !(matchesQuery && matchesType));
+    });
+}
+
+// Charger formulaire de création
+function loadCreateForm() {
+    $.ajax({
+        url: "{% url 'event_create' %}",
+        type: 'GET',
+        headers: {'X-Requested-With':'XMLHttpRequest'},
+        success: function(html){
+            $('#eventFormContainer').html(html);
+            $('#eventFormTitle').text('Nouvel événement');
+            var modal = new bootstrap.Modal(document.getElementById('eventFormModal'));
+            modal.show();
+            initEventFormBehaviour();
+        },
+        error: function(){ alert('Impossible de charger le formulaire'); }
+    });
+}
+
+// Charger formulaire d'édition (pré-rempli)
+function editEvent(id){
+    $.ajax({
+        url: `/dashboard/events/${id}/edit/`,
+        type: 'GET',
+        headers: {'X-Requested-With':'XMLHttpRequest'},
+        success: function(html){
+            $('#eventFormContainer').html(html);
+            $('#eventFormTitle').text('Modifier l\'événement');
+            $('#eventForm').attr('action', `/dashboard/events/${id}/edit/`);
+            var modal = new bootstrap.Modal(document.getElementById('eventFormModal'));
+            modal.show();
+            initEventFormBehaviour();
+        },
+        error: function(){ alert('Impossible de charger l\'événement'); }
+    });
+}
+
+// Initialise comportement commun du formulaire chargé dynamiquement
+function initEventFormBehaviour(){
+    // toggle location field
+    $('#id_is_online').off('change').on('change', function(){
+        if ($(this).is(':checked')) $('#location-field').hide(); else $('#location-field').show();
+    }).trigger('change');
+
+    // soumission AJAX
+    $('#eventForm').off('submit').on('submit', function(e){
+        e.preventDefault();
+        var form = $(this);
+        var url = form.attr('action') || "{% url 'event_create' %}";
+
+        // client-side date validation (start must not be in the past)
+        var start = $('#id_start_time').val();
+        var end = $('#id_end_time').val();
+        var now = new Date();
+        if (start){
+            var s = new Date(start);
+            if (s < now){ return showFormError('La date de début ne doit pas être dans le passé'); }
+        }
+        if (start && end){
+            if (new Date(end) <= new Date(start)){ return showFormError('La date de fin doit être après la date de début'); }
+        }
+
+        var submitBtn = form.find('button[type="submit"]');
+        submitBtn.prop('disabled', true).text('Envoi...');
+
+        $.ajax({
+            url: url,
+            type: 'POST',
+            data: form.serialize(),
+            headers: {'X-Requested-With':'XMLHttpRequest'},
+            success: function(resp){
+                if (resp.status === 'success'){
+                    // message + reload
+                    const m = $('<div class="alert alert-success">'+resp.message+'</div>');
+                    $('.container').prepend(m);
+                    setTimeout(()=> location.reload(), 900);
+                } else {
+                    displayErrors(resp.errors);
+                }
+            },
+            error: function(xhr){
+                if (xhr.status === 400 && xhr.responseJSON && xhr.responseJSON.errors){
+                    displayErrors(xhr.responseJSON.errors);
+                } else {
+                    alert('Erreur serveur. Voir console.');
+                    console.error(xhr);
+                }
+            },
+            complete: function(){
+                submitBtn.prop('disabled', false).text(url.includes('edit') ? 'Modifier' : 'Enregistrer');
+            }
+        });
+    });
+}
+
+function displayErrors(errors){
+    $('.invalid-feedback').hide().empty();
+    $('.is-invalid').removeClass('is-invalid');
+    if (!errors) return;
+    for (let k in errors){
+        let input = $(`#id_${k}`);
+        if (input.length){
+            input.addClass('is-invalid');
+            input.siblings('.invalid-feedback').html(errors[k].join('<br>')).show();
+        } else {
+            // global errors
+            $('#eventFormContainer').prepend(`<div class="alert alert-danger">${errors[k].join('<br>')}</div>`);
+        }
+    }
+}
+
+function showFormError(msg){
+    $('#eventFormContainer .alert-danger').remove();
+    $('#eventFormContainer').prepend(`<div class="alert alert-danger">${msg}</div>`);
+    return false;
+}
+
+// Fonction pour voir les participants
+function viewParticipants(eventId) {
+    window.location.href = `/dashboard/events/${eventId}/participants/`;
+}
+// Animation pour les nouvelles cartes
+function animateNewEvent(eventId) {
+    const eventCard = document.querySelector(`[data-event-id="${eventId}"]`);
+    if (eventCard) {
+        eventCard.classList.add('new-event');
+        setTimeout(() => {
+            eventCard.classList.remove('new-event');
+        }, 3000);
+    }
+}
+
+// Effet de apparition en cascade
+function animateEventsAppearance() {
+    const eventTiles = document.querySelectorAll('.event-tile');
+    eventTiles.forEach((tile, index) => {
+        tile.style.opacity = '0';
+        tile.style.transform = 'translateY(30px)';
+        
+        setTimeout(() => {
+            tile.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+            tile.style.opacity = '1';
+            tile.style.transform = 'translateY(0)';
+        }, index * 100);
+    });
+}
+
+// Initialisation quand la page est chargée
+document.addEventListener('DOMContentLoaded', function() {
+    animateEventsAppearance();
+    
+    // Ajouter un attribut data-event-id pour l'animation
+    document.querySelectorAll('.event-tile').forEach(tile => {
+        const eventId = tile.querySelector('form')?.action.match(/events\/(\d+)\/delete/)?.[1];
+        if (eventId) {
+            tile.setAttribute('data-event-id', eventId);
+        }
+    });
+});
+
+// Fonction pour voir les participants
+function viewParticipants(eventId) {
+    window.location.href = `/dashboard/events/${eventId}/participants/`;
+}
+</script>
+{% endblock %}

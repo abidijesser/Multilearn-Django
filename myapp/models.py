@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
-
+from transformers import pipeline
 # ==================== GESTION DES UTILISATEURS ====================
 
 class User(AbstractUser):
@@ -222,14 +222,14 @@ class QuizResult(models.Model):
         return result
 
 
-# ==================== GESTION DES FEEDBACKS ====================
+# ==================== GESTION DES FEEDBACKS PLATEFORME ====================
 
-class Feedback(models.Model):
+class PlatformFeedback(models.Model):
     """
-    Modèle pour les avis des utilisateurs sur la plateforme
+    Modèle pour les avis généraux des utilisateurs sur la plateforme
     """
     # Utilisateur connecté (optionnel pour permettre les avis anonymes)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='feedbacks', null=True, blank=True, help_text="Utilisateur connecté (optionnel)")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='platform_feedbacks', null=True, blank=True, help_text="Utilisateur connecté (optionnel)")
     
     # Informations de base (pour les avis anonymes)
     username = models.CharField(max_length=150, blank=True, null=True, help_text="Nom d'utilisateur (pour avis anonymes)")
@@ -261,9 +261,9 @@ class Feedback(models.Model):
     is_approved = models.BooleanField(default=True, help_text="Feedback approuvé")
     
     class Meta:
-        db_table = 'feedbacks'
-        verbose_name = 'Feedback'
-        verbose_name_plural = 'Feedbacks'
+        db_table = 'platform_feedbacks'
+        verbose_name = 'Platform Feedback'
+        verbose_name_plural = 'Platform Feedbacks'
         ordering = ['-created_at']
     
     def __str__(self):
@@ -285,3 +285,119 @@ class Feedback(models.Model):
         if self.user:
             return self.user.email
         return self.email
+# ==================== GESTION DES ÉVÉNEMENTS ====================
+
+class Event(models.Model):
+    """
+    Modèle pour la gestion des événements (compétitions, hackathons, etc.)
+    """
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    location = models.CharField(max_length=255, blank=True, null=True)
+    is_online = models.BooleanField(default=False)
+    image = models.ImageField(upload_to='events/', blank=True, null=True)
+    max_participants = models.PositiveIntegerField(blank=True, null=True, help_text="Nombre maximum de participants (laisser vide pour illimité)")
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    
+
+    class Meta:
+        db_table = 'events'
+        verbose_name = 'Événement'
+        verbose_name_plural = 'Événements'
+        ordering = ['-start_time']
+
+def __str__(self):
+    return self.title
+
+@property
+def duration(self):
+    """Calcule la durée de l'événement"""
+    if self.start_time and self.end_time:
+        duration = self.end_time - self.start_time
+        hours = duration.total_seconds() // 3600
+        minutes = (duration.total_seconds() % 3600) // 60
+        
+        if hours > 0:
+            return f"{int(hours)}h{int(minutes):02d}"
+        else:
+            return f"{int(minutes)} min"
+    return "Non définie"
+
+@property
+def is_full(self):
+    if self.max_participants is None:
+        return False
+    return self.participants.count() >= self.max_participants
+
+class Participation(models.Model):
+    STATUS_CHOICES = [
+        ('REGISTERED', 'Inscrit'),
+        ('CONFIRMED', 'Confirmé'),
+        ('CANCELLED', 'Annulé'),
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='participations')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='participants')
+    registered_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='REGISTERED')
+    class Meta:
+        db_table = 'participations'
+        unique_together = ['user', 'event']
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.event.title} ({self.get_status_display()})"
+
+class EventFeedback(models.Model):
+    event = models.ForeignKey('Event', on_delete=models.CASCADE, related_name='feedbacks')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    rating = models.PositiveSmallIntegerField(choices=[(i,i) for i in range(1,6)], null=True, blank=True)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sentiment_score = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'event_feedbacks'
+        verbose_name = 'Event Feedback'
+        verbose_name_plural = 'Event Feedbacks'
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if self.comment and not self.sentiment_score:
+            try:
+                sentiment_analyzer = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+                result = sentiment_analyzer(self.comment[:512])[0]
+                self.sentiment_score = float(result.get('score', 0.5))
+            except Exception:
+                self.sentiment_score = 0.5
+        super().save(*args, **kwargs)
+
+
+    def __str__(self):
+        return f"{self.user} - {self.event} - {self.rating} ⭐"
+ # ---- NOUVELLES MÉTHODES POUR LES AVIS ----
+    def average_rating(self):
+        """Moyenne des notes"""
+        return round(self.feedbacks.aggregate(avg=Avg('rating'))['avg'] or 0, 1)
+
+    def feedback_count(self):
+        """Nombre total d'avis"""
+        return self.feedbacks.count()
+
+    def positive_feedbacks(self):
+        """Nombre d'avis positifs"""
+        return self.feedbacks.filter(sentiment_score__gte=0.6).count()
+
+    def neutral_feedbacks(self):
+        """Nombre d'avis neutres"""
+        return self.feedbacks.filter(sentiment_score__gte=0.4, sentiment_score__lt=0.6).count()
+
+    def negative_feedbacks(self):
+        """Nombre d'avis négatifs"""
+        return self.feedbacks.filter(sentiment_score__lt=0.4).count()
+
+# Keep Feedback as an alias for backwards compatibility
+Feedback = EventFeedback

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Feedback
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult, PlatformFeedback, EventFeedback, Event, Participation 
 
 # ==================== GESTION DES UTILISATEURS ====================
 
@@ -90,15 +90,23 @@ class QuizResultAdmin(admin.ModelAdmin):
     )
 
 
-# ==================== GESTION DES FEEDBACKS ====================
+# ==================== GESTION DES FEEDBACKS PLATEFORME ====================
 
-@admin.register(Feedback)
-class FeedbackAdmin(admin.ModelAdmin):
-    list_display = ['username', 'email', 'message_short', 'is_approved', 'created_at']
+@admin.register(PlatformFeedback)
+class PlatformFeedbackAdmin(admin.ModelAdmin):
+    list_display = ['display_username', 'display_email', 'message_short', 'is_approved', 'created_at']
     list_filter = ['is_approved', 'created_at']
-    search_fields = ['username', 'email', 'message']
+    search_fields = ['username', 'email', 'message', 'user__username', 'user__email']
     readonly_fields = ['created_at']
     date_hierarchy = 'created_at'
+    
+    def display_username(self, obj):
+        return obj.display_name
+    display_username.short_description = 'Utilisateur'
+    
+    def display_email(self, obj):
+        return obj.display_email
+    display_email.short_description = 'Email'
     
     def message_short(self, obj):
         return obj.message[:50] + '...' if len(obj.message) > 50 else obj.message
@@ -106,7 +114,7 @@ class FeedbackAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Informations', {
-            'fields': ('username', 'email', 'created_at')
+            'fields': ('user', 'username', 'email', 'created_at')
         }),
         ('Contenu', {
             'fields': ('message',)
@@ -115,3 +123,34 @@ class FeedbackAdmin(admin.ModelAdmin):
             'fields': ('is_approved',)
         }),
     )
+
+# ==================== GESTION DES FEEDBACKS ÉVÉNEMENTS ====================
+
+@admin.register(EventFeedback)
+class EventFeedbackAdmin(admin.ModelAdmin):
+    list_display = ['user', 'event', 'rating', 'sentiment_score', 'created_at']
+    list_filter = ['rating', 'created_at', 'event']
+    search_fields = ['user__username', 'event__title', 'comment']
+    readonly_fields = ['created_at', 'sentiment_score']
+    date_hierarchy = 'created_at'
+    
+    def comment_short(self, obj):
+        return obj.comment[:50] + '...' if obj.comment and len(obj.comment) > 50 else obj.comment
+    comment_short.short_description = 'Commentaire'
+
+# ==================== GESTION DES ÉVÉNEMENTS ====================
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ['title', 'start_time', 'end_time', 'location', 'is_online', 'created_by', 'created_at']
+    list_filter = ['is_online', 'start_time', 'end_time', 'created_at']
+    search_fields = ['title', 'description', 'location', 'created_by__username']
+    date_hierarchy = 'start_time'
+
+
+@admin.register(Participation)
+class ParticipationAdmin(admin.ModelAdmin):
+    list_display = ['user', 'event', 'status', 'registered_at']
+    list_filter = ['status', 'registered_at']
+    search_fields = ['user__username', 'event__title']
+    readonly_fields = ['registered_at']

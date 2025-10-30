@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+
+{% block title %}Participants - {{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'events_admin' %}">Événements</a></li>
+                    <li class="breadcrumb-item active">Participants</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0">
+                <i class="bi bi-people-fill text-primary"></i>
+                Participants - {{ event.title }}
+            </h1>
+            <p class="text-muted">{{ event.start_time|date:"d/m/Y H:i" }} • {{ participants.count }} participants</p>
+        </div>
+        <div>
+            <a href="{% url 'events_admin' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Retour
+            </a>
+            <button class="btn btn-success" onclick="exportToExcel()">
+                <i class="bi bi-download"></i> Exporter
+            </button>
+        </div>
+    </div>
+
+    <!-- Cartes de statistiques -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-primary text-white mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Total</div>
+                            <div class="h5 mb-0">{{ stats.total }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-people fa-2x text-white-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-success text-white mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Confirmés</div>
+                            <div class="h5 mb-0">{{ stats.confirmed }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-check-circle fa-2x text-white-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-warning text-white mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Inscrits</div>
+                            <div class="h5 mb-0">{{ stats.registered }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-person fa-2x text-white-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-danger text-white mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">Annulés</div>
+                            <div class="h5 mb-0">{{ stats.cancelled }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-x-circle fa-2x text-white-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tableau des participants -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Liste des participants</h5>
+                <div class="input-group" style="width: 300px;">
+                    <input type="text" id="searchParticipants" class="form-control" placeholder="Rechercher...">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="participantsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>Email</th>
+                            <th>Rôle</th>
+                            <th>Date d'inscription</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for participation in participants %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if participation.user.profile_picture %}
+                                        <img src="{{ participation.user.profile_picture.url }}" 
+                                             class="rounded-circle me-3" width="40" height="40" alt="Avatar">
+                                    {% else %}
+                                        <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" 
+                                             style="width: 40px; height: 40px;">
+                                            <i class="bi bi-person"></i>
+                                        </div>
+                                    {% endif %}
+                                    <div>
+                                        <strong>{{ participation.user.get_full_name|default:participation.user.username }}</strong>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ participation.user.email }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ participation.user.get_role_display }}</span>
+                            </td>
+                            <td>{{ participation.registered_at|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if participation.status == 'CONFIRMED' %}bg-success
+                                    {% elif participation.status == 'REGISTERED' %}bg-warning
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ participation.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-primary dropdown-toggle" 
+                                            data-bs-toggle="dropdown">
+                                        Modifier statut
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="updateStatus('{{ event.id }}', '{{ participation.user.id }}', 'REGISTERED')">
+                                                <i class="bi bi-person"></i> Inscrit
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="updateStatus('{{ event.id }}', '{{ participation.user.id }}', 'CONFIRMED')">
+                                                <i class="bi bi-check-circle"></i> Confirmé
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="#" 
+                                               onclick="updateStatus('{{ event.id }}', '{{ participation.user.id }}', 'CANCELLED')">
+                                                <i class="bi bi-x-circle"></i> Annulé
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="bi bi-people display-4 d-block mb-2"></i>
+                                Aucun participant pour le moment
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateStatus(eventId, userId, status) {
+    $.ajax({
+        url: `/dashboard/events/${eventId}/participants/${userId}/update/`,
+        type: 'POST',
+        data: {
+            'status': status,
+            'csrfmiddlewaretoken': '{{ csrf_token }}'
+        },
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            if (response.success) {
+                location.reload();
+            }
+        },
+        error: function(xhr) {
+            alert('Erreur lors de la mise à jour du statut');
+        }
+    });
+}
+
+function exportToExcel() {
+    // Implémentation pour exporter en Excel
+    alert('Fonction d\'export à implémenter');
+}
+
+// Recherche en temps réel
+$(document).ready(function() {
+    $('#searchParticipants').on('keyup', function() {
+        var value = $(this).val().toLowerCase();
+        $('#participantsTable tbody tr').filter(function() {
+            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+        });
+    });
+});
+</script>
+
+<style>
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    color: #6c757d;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+</style>
+{% endblock %}

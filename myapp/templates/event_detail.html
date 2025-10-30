@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ event.title }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- En-tête de l'événement -->
+            <div class="card mb-4">
+                <div class="card-header {% if event.is_online %}bg-primary{% else %}bg-success{% endif %} text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h1 class="h3 mb-0">{{ event.title }}</h1>
+                        <span class="badge {% if event.is_online %}bg-info{% else %}bg-warning{% endif %}">
+                            {% if event.is_online %}
+                                <i class="bi bi-laptop"></i> En ligne
+                            {% else %}
+                                <i class="bi bi-geo-alt"></i> Présentiel
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if event.description %}
+                    <div class="mb-4">
+                        <h5 class="card-title">Description</h5>
+                        <p class="card-text">{{ event.description|linebreaks }}</p>
+                    </div>
+                    {% endif %}
+
+                    <!-- Informations de l'événement -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="card-title"><i class="bi bi-clock"></i> Horaires</h5>
+                            <ul class="list-unstyled">
+                                <li><strong>Début:</strong> {{ event.start_time|date:"d/m/Y H:i" }}</li>
+                                <li><strong>Fin:</strong> {{ event.end_time|date:"d/m/Y H:i" }}</li>
+                                <li><strong>Durée:</strong> {{ event.duration }}</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="card-title"><i class="bi bi-info-circle"></i> Informations</h5>
+                            <ul class="list-unstyled">
+                                {% if not event.is_online and event.location %}
+                                <li><strong>Lieu:</strong> {{ event.location }}</li>
+                                {% endif %}
+                                <li><strong>Créé par:</strong> {{ event.created_by.get_full_name|default:event.created_by.username }}</li>
+                                <li><strong>Participants:</strong> {{ participants.count }}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Actions</h5>
+                    <div class="btn-group" role="group">
+                        {% if user.is_authenticated %}
+                            <form method="post" action="{% url 'participate_event' event.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-person-plus"></i> Participer
+                                </button>
+                            </form>
+                        {% endif %}
+                        
+                        {% if user == event.created_by or user.role == 'ADMIN' %}
+                            <a href="{% url 'event_edit' event.id %}" class="btn btn-warning">
+                                <i class="bi bi-pencil"></i> Modifier
+                            </a>
+                            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                                <i class="bi bi-trash"></i> Supprimer
+                            </button>
+                        {% endif %}
+                        
+                        <a href="{% url 'events_admin' %}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Retour à la liste
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Participants -->
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-people-fill"></i> Participants ({{ participants.count }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if participants %}
+                        <div class="list-group list-group-flush">
+                            {% for participation in participants %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ participation.user.get_full_name|default:participation.user.username }}</strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        Inscrit le {{ participation.registered_at|date:"d/m/Y" }}
+                                    </small>
+                                </div>
+                                <span class="badge bg-primary rounded-pill">{{ participation.get_status_display }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">Aucun participant pour le moment.</p>
+                        {% if user.is_authenticated %}
+                            <div class="text-center">
+                                <form method="post" action="{% url 'participate_event' event.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-person-plus"></i> Être le premier participant
+                                    </button>
+                                </form>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Informations complémentaires -->
+            <div class="card mt-4">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">Détails de l'événement</h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted">
+                        <p><strong>Créé le:</strong> {{ event.created_at|date:"d/m/Y à H:i" }}</p>
+                        <p><strong>Dernière modification:</strong> {{ event.updated_at|date:"d/m/Y à H:i" }}</p>
+                        
+                        {% if event.is_online %}
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                Cet événement se déroule en ligne. Les détails de connexion seront communiqués ultérieurement.
+                            </div>
+                        {% elif event.location %}
+                            <div class="alert alert-warning">
+                                <i class="bi bi-geo-alt"></i> 
+                                Lieu: {{ event.location }}
+                            </div>
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de suppression -->
+{% if user == event.created_by or user.role == 'ADMIN' %}
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer l'événement <strong>"{{ event.title }}"</strong> ?</p>
+                <p class="text-danger">Cette action est irréversible.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <form method="post" action="{% url 'event_delete' event.id %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    border-radius: 15px 15px 0 0 !important;
+}
+
+.list-group-item {
+    border: none;
+    border-bottom: 1px solid #eee;
+    padding: 15px;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+}
+
+.badge {
+    font-size: 0.8em;
+}
+
+.btn {
+    border-radius: 8px;
+    margin: 2px;
+}
+</style>
+{% endblock %}

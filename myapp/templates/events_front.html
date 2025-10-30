@@ -1,0 +1,720 @@
+{% extends 'base.html' %}
+
+{% block title %}Événements{% endblock %}
+
+{% block content %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<div class="container my-5">
+    <!-- Header Section Améliorée -->
+    <div class="text-center mb-5 py-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; color: white;">
+        <h1 class="display-4 mb-3 fw-bold">🎉 Événements à venir</h1>
+        <p class="lead mb-4" style="opacity: 0.9;">Découvrez et participez à nos événements exclusifs</p>
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <span class="badge bg-light text-dark fs-6 p-3">
+                    <i class="bi bi-calendar-check"></i> {{ events.count }} événement{{ events.count|pluralize:"s" }} disponible{{ events.count|pluralize:"s" }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search & Filter Amélioré -->
+    <div class="row mb-5">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-6">
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-light border-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="text" id="eventSearch" class="form-control border-0" 
+                                       placeholder="Rechercher un événement...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select form-select-lg border-0 bg-light" id="eventType">
+                                <option value="">Tous les types</option>
+                                <option value="online">🎯 En ligne</option>
+                                <option value="offline">🏢 Présentiel</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-secondary w-100" onclick="resetFilters()">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Events Grid Redesigné -->
+    <div class="row g-4" id="eventsContainer">
+        {% for event in events %}
+        <div class="col-md-6 col-lg-4 event-card" data-type="{% if event.is_online %}online{% else %}offline{% endif %}">
+            <div class="card event-card-item h-100 border-0">
+                <!-- En-tête visuel -->
+                <div class="event-header position-relative">
+                    {% if event.image %}
+                    <div class="event-image has-photo" style="background-image: url('{{ event.image.url }}');">
+                        <div class="event-overlay"></div>
+                    </div>
+                    {% elif event.is_online %}
+                    <div class="event-image online-event">
+                        <i class="bi bi-laptop"></i>
+                        <div class="event-overlay"></div>
+                    </div>
+                    {% else %}
+                    <div class="event-image offline-event">
+                        <i class="bi bi-geo-alt"></i>
+                        <div class="event-overlay"></div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Badge type -->
+                    <div class="event-type-badge">
+                        <span class="badge {% if event.is_online %}bg-info{% else %}bg-warning{% endif %}">
+                            {% if event.is_online %}
+                            <i class="bi bi-wifi"></i> En ligne
+                            {% else %}
+                            <i class="bi bi-building"></i> Présentiel
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <!-- Compteur participants -->
+                    <div class="participants-count-badge">
+                        <span class="badge bg-dark bg-opacity-75">
+                            <i class="bi bi-people"></i> {{ event.participants.count }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-body d-flex flex-column p-4">
+                    <!-- Titre et date -->
+                    <div class="mb-3">
+                        <h5 class="card-title fw-bold text-dark mb-2">{{ event.title }}</h5>
+                        <div class="event-date">
+                            <i class="bi bi-calendar-event text-primary"></i>
+                            <small class="text-muted">
+                                {{ event.start_time|date:"d M Y" }} • {{ event.start_time|date:"H:i" }}
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    {% if event.description %}
+                    <p class="card-text text-muted mb-4 flex-grow-1">
+                        {{ event.description|truncatewords:25 }}
+                    </p>
+                    {% endif %}
+
+                    <!-- Métadonnées -->
+                    <div class="event-meta mb-4">
+                        {% if not event.is_online and event.location %}
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-geo-alt-fill text-danger me-2"></i>
+                            <small class="text-muted">{{ event.location }}</small>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-clock text-primary me-2"></i>
+                            <small class="text-muted">
+                                Durée: {{ event.duration }}
+                            </small>
+                        </div>
+
+                        <!-- Avis et notes -->
+                        {% if event.feedbacks.exists %}
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="rating-display me-2">
+                                {% for i in "12345" %}
+                                    {% if i|add:0 <= event.average_rating %}
+                                        <span class="star-filled">★</span>
+                                    {% else %}
+                                        <span class="star-empty">☆</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted">
+                                {{ event.average_rating|floatformat:1 }} ({{ event.feedback_count }} avis)
+                            </small>
+                        </div>
+                        {% endif %}
+
+                        <!-- Statut de l'événement -->
+                        <div class="d-flex align-items-center">
+                            <div class="status-indicator {% if event.end_time < now %}ended{% elif event.start_time > now %}upcoming{% else %}ongoing{% endif %} me-2"></div>
+                            <small class="text-muted">
+                                {% if event.end_time < now %}
+                                <i class="bi bi-stop-circle text-secondary"></i> Terminé
+                                {% elif event.start_time > now %}
+                                <i class="bi bi-clock text-warning"></i> À venir
+                                {% else %}
+                                <i class="bi bi-play-circle text-success"></i> En cours
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Bouton de participation -->
+                    <div class="mt-auto">
+                        {% if user.is_authenticated %}
+                            {% if event.end_time < now %}
+                                <!-- Événement terminé - Bouton feedback pour tout utilisateur connecté -->
+                                <button class="btn btn-outline-primary w-100" 
+                                        onclick="showFeedbackModal('{{ event.id }}')">
+                                    <i class="bi bi-star"></i> Donner votre avis
+                                </button>
+                            {% else %}
+                                {% if event.id in participated_event_ids %}
+                                    <!-- Déjà inscrit -->
+                                    <button class="btn btn-success w-100 disabled participation-btn">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        <span class="ms-2">Déjà inscrit</span>
+                                    </button>
+                                    {% if event.start_time <= now %}
+                                    <div class="mt-2">
+                                        <button class="btn btn-outline-primary w-100" 
+                                                onclick="showFeedbackModal('{{ event.id }}')">
+                                            <i class="bi bi-star"></i> Donner votre avis
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                {% else %}
+                                    {% if event.max_participants and event.participants.count >= event.max_participants %}
+                                    <button class="btn btn-outline-secondary w-100 disabled" title="Événement complet">
+                                        <i class="bi bi-people-fill"></i>
+                                        <span class="ms-2">Complet</span>
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-primary w-100 participation-btn" 
+                                            onclick="showParticipateModal('{{ event.id }}', '{{ event.title|escapejs }}')">
+                                        <i class="bi bi-person-plus-fill"></i>
+                                        <span class="ms-2">Participer</span>
+                                    </button>
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                        {% else %}
+                            <a href="{% url 'login' %}?next={% url 'event_list' %}" class="btn btn-outline-primary w-100">
+                                <i class="bi bi-box-arrow-in-right"></i>
+                                <span class="ms-2">Connectez-vous pour participer</span>
+                            </a>
+                        {% endif %}
+                    </div>
+                    
+                    {% with stats=event.feedback_stats %}
+                    {% if event.end_time < now %}
+                    <div class="google-like-stats mt-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <small class="text-muted">{{ stats.total|default:0 }} avis</small>
+                        </div>
+                        <div class="sentiment-rows">
+                            <div class="sentiment-row">
+                                <span class="sentiment-emoji">😀</span>
+                                <div class="sentiment-bar">
+                                    <div class="sentiment-fill pos" style="width: {{ stats.sentiment_pct.pos|default:0|floatformat:0 }}%"></div>
+                                </div>
+                                <small class="sentiment-pct">{{ stats.sentiment_pct.pos|default:0|floatformat:0 }}%</small>
+                            </div>
+                            <div class="sentiment-row">
+                                <span class="sentiment-emoji">😐</span>
+                                <div class="sentiment-bar">
+                                    <div class="sentiment-fill neu" style="width: {{ stats.sentiment_pct.neu|default:0|floatformat:0 }}%"></div>
+                                </div>
+                                <small class="sentiment-pct">{{ stats.sentiment_pct.neu|default:0|floatformat:0 }}%</small>
+                            </div>
+                            <div class="sentiment-row">
+                                <span class="sentiment-emoji">😠</span>
+                                <div class="sentiment-bar">
+                                    <div class="sentiment-fill neg" style="width: {{ stats.sentiment_pct.neg|default:0|floatformat:0 }}%"></div>
+                                </div>
+                                <small class="sentiment-pct">{{ stats.sentiment_pct.neg|default:0|floatformat:0 }}%</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <div class="empty-state">
+                    <i class="bi bi-calendar-x display-1 text-muted mb-4"></i>
+                    <h3 class="text-muted mb-3">Aucun événement prévu</h3>
+                    <p class="text-muted mb-4">Revenez plus tard pour découvrir nos prochains événements</p>
+                    {% if user.is_authenticated and user.role == 'ADMIN' %}
+                    <a href="{% url 'events_admin' %}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Créer un événement
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+</div>
+
+<!-- Modal Participation -->
+<div class="modal fade" id="participateModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white border-0">
+                <h5 class="modal-title"><i class="bi bi-person-plus-fill"></i> Confirmer la participation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-calendar-check display-4 text-primary mb-3"></i>
+                <h5 class="mb-3">Participer à l'événement</h5>
+                <p class="text-muted mb-4">"<span id="eventTitle" class="fw-bold text-dark"></span>"</p>
+                <form id="participateForm" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="event_id" id="eventId">
+                </form>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x-circle"></i> Annuler</button>
+                <button type="button" class="btn btn-primary px-4" onclick="submitParticipation()"><i class="bi bi-check-circle"></i> Confirmer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Feedback Modals -->
+{% for event in events %}
+    {% if user.is_authenticated and event.id in participated_event_ids %}
+    <div class="modal fade" id="feedbackModal-{{ event.id }}" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-star"></i> Votre avis sur "{{ event.title }}"</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="feedbackForm-{{ event.id }}" class="feedback-form" action="{% url 'submit_feedback' event.id %}" method="post">
+                        {% csrf_token %}
+                    <div class="mb-3">
+                        <h6 class="mb-2">Votre avis (analysé par IA)</h6>
+                        <small class="text-muted d-block mb-2">Veuillez saisir un commentaire, les étoiles sont facultatives.</small>
+                    </div>
+                        <div class="mb-3">
+                            <label class="form-label">Commentaire</label>
+                            <textarea class="form-control" name="comment" rows="3" placeholder="Partagez votre expérience..."></textarea>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x"></i> Annuler</button>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Envoyer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endfor %}
+
+<style>
+/* Styles pour le front-office */
+.event-card-item {
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    background: white;
+}
+
+.event-card-item:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+}
+
+.event-header {
+    height: 140px;
+    overflow: hidden;
+    position: relative;
+}
+
+.event-image {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3.5rem;
+    color: white;
+    position: relative;
+}
+
+.event-image.has-photo {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.event-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+}
+
+.online-event {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.offline-event {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.event-type-badge {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+}
+
+.participants-count-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+}
+
+.event-date {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    padding: 8px 12px;
+    border-radius: 10px;
+    display: inline-block;
+}
+
+.participation-btn {
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.participation-btn:hover:not(.disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+/* Indicateurs de statut */
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-indicator.upcoming {
+    background-color: #ffc107;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.ongoing {
+    background-color: #28a745;
+    animation: blink 1.5s infinite;
+}
+
+.status-indicator.ended {
+    background-color: #6c757d;
+}
+
+/* Styles pour le système de notation */
+.rating {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: center;
+    gap: 5px;
+}
+
+.rating input {
+    display: none;
+}
+
+.rating label {
+    font-size: 40px;
+    color: #ddd;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.rating label:hover,
+.rating label:hover ~ label,
+.rating input:checked ~ label {
+    color: #ffd700;
+    transform: scale(1.1);
+}
+
+.rating input:checked + label:hover,
+.rating input:checked ~ label:hover,
+.rating label:hover ~ input:checked ~ label,
+.rating input:checked ~ label:hover ~ label {
+    color: #ffc107;
+}
+
+/* Affichage des étoiles pour les avis existants */
+.rating-display {
+    display: flex;
+    gap: 2px;
+}
+
+.star-filled {
+    color: #ffd700;
+    font-size: 16px;
+}
+
+.star-empty {
+    color: #ddd;
+    font-size: 16px;
+}
+
+/* Google-like compact sentiment bars */
+.google-like-stats .sentiment-rows { margin-top: 6px; }
+.sentiment-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sentiment-emoji { font-size: 18px; width: 22px; text-align: center; }
+.sentiment-bar { flex: 1; height: 8px; background: #f1f3f4; border-radius: 4px; overflow: hidden; }
+.sentiment-fill { height: 100%; border-radius: 4px; transition: width .3s ease; }
+.sentiment-fill.pos { background: #34a853; }
+.sentiment-fill.neu { background: #fbbc04; }
+.sentiment-fill.neg { background: #ea4335; }
+.sentiment-pct { width: 40px; text-align: right; color: #6c757d; }
+
+/* Animation pour le texte de notation */
+.rating-text {
+    min-height: 20px;
+    transition: all 0.3s ease;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.7; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+
+/* Animations d'apparition */
+.event-card {
+    animation: fadeInUp 0.6s ease-out;
+    animation-fill-mode: both;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* État vide */
+.empty-state {
+    padding: 3rem 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .event-header {
+        height: 120px;
+    }
+    
+    .event-image {
+        font-size: 2.5rem;
+    }
+    
+    .card-body {
+        padding: 1.5rem !important;
+    }
+    
+    .rating label {
+        font-size: 30px;
+    }
+}
+
+/* Filtres */
+.event-card.hidden {
+    display: none;
+}
+
+.badge {
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+</style>
+
+<script>
+// Animation d'apparition en cascade
+function animateEvents() {
+    $('.event-card').each(function(index) {
+        $(this).css({
+            'opacity': '0',
+            'transform': 'translateY(30px)'
+        });
+        
+        setTimeout(() => {
+            $(this).css({
+                'transition': 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                'opacity': '1',
+                'transform': 'translateY(0)'
+            });
+        }, index * 150);
+    });
+}
+
+$(document).ready(function() {
+    animateEvents();
+    
+    // Recherche et filtrage amélioré
+    $('#eventSearch, #eventType').on('input change', filterEvents);
+
+    function filterEvents() {
+        const searchTerm = $('#eventSearch').val().toLowerCase();
+        const selectedType = $('#eventType').val();
+
+        $('.event-card').each(function() {
+            const card = $(this);
+            const title = card.find('.card-title').text().toLowerCase();
+            const description = card.find('.card-text').text().toLowerCase();
+            const location = card.find('.event-meta').text().toLowerCase();
+            const type = card.data('type');
+
+            const matchesSearch = title.includes(searchTerm) || 
+                                description.includes(searchTerm) || 
+                                location.includes(searchTerm);
+            const matchesType = !selectedType || type === selectedType;
+
+            if (matchesSearch && matchesType) {
+                card.removeClass('hidden').css('display', 'block');
+            } else {
+                card.addClass('hidden').css('display', 'none');
+            }
+        });
+    }
+});
+
+function resetFilters() {
+    $('#eventSearch').val('');
+    $('#eventType').val('');
+    $('.event-card').removeClass('hidden').css('display', 'block');
+    animateEvents();
+}
+
+function showParticipateModal(eventId, eventTitle) {
+    $('#eventTitle').text(eventTitle);
+    $('#eventId').val(eventId);
+    
+    const modal = new bootstrap.Modal(document.getElementById('participateModal'));
+    modal.show();
+}
+
+function submitParticipation() {
+    const eventId = $('#eventId').val();
+    const form = $('#participateForm');
+    const submitBtn = $('#participateModal .btn-primary');
+    
+    // Animation de chargement
+    submitBtn.prop('disabled', true).html(`
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Inscription...
+    `);
+    
+    $.ajax({
+        url: `/events/${eventId}/participate/`,
+        type: 'POST',
+        data: form.serialize(),
+        success: function(response) {
+            // Fermer le modal et recharger
+            bootstrap.Modal.getInstance(document.getElementById('participateModal')).hide();
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        },
+        error: function(xhr) {
+            alert('Une erreur est survenue. Veuillez réessayer.');
+            submitBtn.prop('disabled', false).html(`
+                <i class="bi bi-check-circle"></i> Confirmer
+            `);
+        }
+    });
+}
+
+// Fonction pour afficher le modal de feedback
+function showFeedbackModal(eventId) {
+    const modal = new bootstrap.Modal(document.getElementById(`feedbackModal-${eventId}`));
+    modal.show();
+}
+
+// Gestion des formulaires de feedback
+document.addEventListener('DOMContentLoaded', function() {
+    // Appliquer les largeurs des barres de progression (éviter inline style)
+    document.querySelectorAll('.progress-bar[data-pct]').forEach(el => {
+        const pct = parseInt(el.getAttribute('data-pct') || '0', 10);
+        el.style.width = `${pct}%`;
+        el.setAttribute('aria-valuenow', String(pct));
+        el.setAttribute('aria-valuemin', '0');
+        el.setAttribute('aria-valuemax', '100');
+    });
+    // Plus de synchronisation étoiles (feedback basé sur le texte)
+
+    document.querySelectorAll('.feedback-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Envoi...';
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const modalElement = this.closest('.modal');
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    modal.hide();
+                    
+                    // Afficher un message de succès
+                    alert('Merci pour votre avis !');
+                    location.reload();
+                } else {
+                    alert(data.message || 'Une erreur est survenue lors de l\'envoi de votre avis.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Une erreur est survenue. Veuillez réessayer.');
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-send"></i> Envoyer';
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

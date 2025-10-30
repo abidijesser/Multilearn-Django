@@ -4,10 +4,16 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Feedback
-from .content_filter import content_filter
+from django import forms
 from django.http import JsonResponse
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Event, Participation, EventFeedback, PlatformFeedback
 import json
+from django.views.decorators.csrf import csrf_exempt
+from transformers import pipeline
+import os
+import requests
+from django.core.files.base import ContentFile
+from .content_filter import content_filter
 from django.shortcuts import render
 from .generate_quiz import generate_quiz_from_text
 import re
@@ -16,6 +22,30 @@ import google.generativeai as genai
 # Configuration Gemini
 genai.configure(api_key='AIzaSyBFo_IkHcOzYFtLlzZKRcT7frmdcuvwB38')
 gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+
+# ---------- IA Image Generation Helper ----------
+def generate_event_image(title: str, description: str):
+    """
+    Try to generate an image via Hugging Face Inference API using the title/description.
+    Returns raw image bytes on success, or None otherwise.
+    Requires env var HF_API_TOKEN. Uses a general SD model endpoint.
+    """
+    api_token = os.getenv('HF_API_TOKEN')
+    if not api_token:
+        return None
+    prompt = f"Event poster, professional, modern, clean, high quality, '{title}'. {description[:200]}"
+    try:
+        resp = requests.post(
+            'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2',
+            headers={'Authorization': f'Bearer {api_token}'},
+            json={'inputs': prompt},
+            timeout=30
+        )
+        if resp.status_code == 200 and resp.content:
+            return resp.content
+    except Exception:
+        return None
+    return None
 
 # ============= Fonctions IA pour recommandations =============
 
@@ -762,176 +792,8 @@ def quiz_result_detail(request, result_id):
     return render(request, 'quiz_result_detail.html', context)
 
 
-# ============= Feedback =============
+# ============= Quiz AI Generation =============
 
-def feedback_list(request):
-    """Liste des feedbacks publics"""
-    feedbacks = Feedback.objects.filter(is_approved=True).order_by('-created_at')
-    
-    context = {
-        'feedbacks': feedbacks,
-    }
-    return render(request, 'feedback_list.html', context)
-
-
-def feedback_create(request):
-    """Créer un nouveau feedback"""
-    if request.method == 'POST':
-        message = request.POST.get('message')
-        
-        # Validation
-        if not message:
-            messages.error(request, 'Veuillez saisir votre message.')
-            return render(request, 'feedback_create.html', {'user': request.user})
-        
-        if len(message.strip()) < 3:
-            messages.error(request, 'Votre message doit contenir au moins 3 caractères.')
-            return render(request, 'feedback_create.html', {'user': request.user})
-        
-        # Vérifier le contenu inapproprié côté serveur
-        content_result = content_filter.check_content(message)
-        if not content_result['is_appropriate']:
-            messages.error(request, f"Contenu inapproprié détecté : {content_result['message']}")
-            return render(request, 'feedback_create.html', {'user': request.user})
-        
-        # Créer le feedback
-        if request.user.is_authenticated:
-            # Utilisateur connecté - utiliser ses informations
-            feedback = Feedback.objects.create(
-                user=request.user,
-                message=message
-            )
-            messages.success(request, 'Merci pour votre feedback ! Il sera publié après modération.')
-        else:
-            # Utilisateur anonyme - demander les informations
-            username = request.POST.get('username')
-            email = request.POST.get('email')
-            
-            if not all([username, email]):
-                messages.error(request, 'Veuillez remplir tous les champs.')
-                return render(request, 'feedback_create.html', {'user': request.user})
-            
-            feedback = Feedback.objects.create(
-                username=username,
-                email=email,
-                message=message
-            )
-            messages.success(request, 'Merci pour votre feedback ! Il sera publié après modération.')
-        
-        return redirect('feedback_list')
-    
-    return render(request, 'feedback_create.html', {'user': request.user})
-
-
-@login_required
-def feedback_admin(request):
-    """Gestion des feedbacks pour les administrateurs"""
-    if request.user.role != 'ADMIN':
-        messages.error(request, 'Accès non autorisé.')
-        return redirect('dashboard')
-    
-    feedbacks = Feedback.objects.all().order_by('-created_at')
-    
-    # Filtres
-    status = request.GET.get('status')
-    if status == 'approved':
-        feedbacks = feedbacks.filter(is_approved=True)
-    elif status == 'pending':
-        feedbacks = feedbacks.filter(is_approved=False)
-    
-    context = {
-        'feedbacks': feedbacks,
-        'total_feedbacks': Feedback.objects.count(),
-        'approved_feedbacks': Feedback.objects.filter(is_approved=True).count(),
-        'pending_feedbacks': Feedback.objects.filter(is_approved=False).count(),
-    }
-    return render(request, 'feedback_admin.html', context)
-
-
-@login_required
-def feedback_approve(request, feedback_id):
-    """Approuver un feedback"""
-    if request.user.role != 'ADMIN':
-        messages.error(request, 'Accès non autorisé.')
-        return redirect('dashboard')
-    
-    feedback = get_object_or_404(Feedback, id=feedback_id)
-    feedback.is_approved = True
-    feedback.save()
-    
-    messages.success(request, 'Feedback approuvé avec succès !')
-    return redirect('feedback_admin')
-
-
-@login_required
-def feedback_reject(request, feedback_id):
-    """Rejeter un feedback"""
-    if request.user.role != 'ADMIN':
-        messages.error(request, 'Accès non autorisé.')
-        return redirect('dashboard')
-    
-    feedback = get_object_or_404(Feedback, id=feedback_id)
-    feedback.is_approved = False
-    feedback.save()
-    
-    messages.success(request, 'Feedback rejeté.')
-    return redirect('feedback_admin')
-
-
-@login_required
-def feedback_edit(request, feedback_id):
-    """Modifier un feedback (propriétaire uniquement)"""
-    feedback = get_object_or_404(Feedback, id=feedback_id)
-    
-    # Vérifier que l'utilisateur est le propriétaire du feedback
-    if feedback.user != request.user:
-        messages.error(request, 'Vous ne pouvez modifier que vos propres avis.')
-        return redirect('feedback_list')
-    
-    if request.method == 'POST':
-        message = request.POST.get('message')
-        
-        # Validation
-        if not message:
-            messages.error(request, 'Veuillez saisir votre message.')
-            return render(request, 'feedback_edit.html', {'feedback': feedback})
-        
-        if len(message.strip()) < 3:
-            messages.error(request, 'Votre message doit contenir au moins 3 caractères.')
-            return render(request, 'feedback_edit.html', {'feedback': feedback})
-        
-        # Vérifier le contenu inapproprié côté serveur
-        content_result = content_filter.check_content(message)
-        if not content_result['is_appropriate']:
-            messages.error(request, f"Contenu inapproprié détecté : {content_result['message']}")
-            return render(request, 'feedback_edit.html', {'feedback': feedback})
-        
-        # Mettre à jour le feedback
-        feedback.message = message
-        feedback.save()
-        
-        messages.success(request, 'Votre avis a été modifié avec succès !')
-        return redirect('feedback_list')
-    
-    return render(request, 'feedback_edit.html', {'feedback': feedback})
-
-
-@login_required
-def feedback_delete(request, feedback_id):
-    """Supprimer un feedback (propriétaire uniquement)"""
-    feedback = get_object_or_404(Feedback, id=feedback_id)
-    
-    # Vérifier que l'utilisateur est le propriétaire du feedback
-    if feedback.user != request.user:
-        messages.error(request, 'Vous ne pouvez supprimer que vos propres avis.')
-        return redirect('feedback_list')
-    
-    if request.method == 'POST':
-        feedback.delete()
-        messages.success(request, 'Votre avis a été supprimé avec succès.')
-        return redirect('feedback_list')
-    
-    return render(request, 'feedback_delete.html', {'feedback': feedback})
 @login_required
 def generate_quiz_ai(request, course_id):
     course = get_object_or_404(Course, id=course_id)
@@ -947,9 +809,10 @@ def generate_quiz_ai(request, course_id):
         "course": course
     }
     return render(request, "quiz/generate_quiz.html", context)
+
 import PyPDF2
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from PyPDF2 import PdfReader
+
 @csrf_exempt
 def generate_quiz_ai_pdf(request, course_id):
     if request.method == 'POST' and request.FILES.get('pdf'):
@@ -968,70 +831,6 @@ def generate_quiz_ai_pdf(request, course_id):
         ]
         return JsonResponse({"questions": questions})
     return JsonResponse({"error": "Aucun PDF reçu"}, status=400)
-
-from django.http import JsonResponse
-from .models import Course
-from .generate_quiz import generate_quiz_from_text
-
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from .models import Course, Quiz, Question
-import json
-
-
-def quiz_create(request, course_id):
-    course = get_object_or_404(Course, id=course_id)
-
-    if request.method == "POST":
-        # 1️⃣ Récupérer les infos générales du quiz
-        title = request.POST.get("title")
-        description = request.POST.get("description")
-        quiz_type = request.POST.get("quiz_type")
-        duration = int(request.POST.get("duration_minutes", 30))
-        passing_score = int(request.POST.get("passing_score", 70))
-        max_attempts = int(request.POST.get("max_attempts", 3))
-        show_answers = bool(request.POST.get("show_answers"))
-
-        # 2️⃣ Créer le quiz
-        quiz = Quiz.objects.create(
-            course=course,
-            title=title,
-            description=description,
-            quiz_type=quiz_type,
-            duration_minutes=duration,
-            passing_score=passing_score,
-            max_attempts=max_attempts,
-            show_answers=show_answers
-        )
-
-        # 3️⃣ Ajouter les questions générées (depuis ton JS)
-        questions_json = request.POST.get("questions_data")
-        if questions_json:
-            try:
-                questions_data = json.loads(questions_json)
-                for q in questions_data:
-                    Question.objects.create(
-                        quiz=quiz,
-                        question_text=q.get("question_text"),
-                        points=q.get("points", 10),
-                        correct_answer=q.get("correct_answer"),
-                        order=q.get("order", 1)
-                        # ⚠️ Ne mets pas 'options' ou 'explanation' si ton modèle Question ne les a pas
-                    )
-            except Exception as e:
-                messages.error(request, f"Erreur lors de la création des questions : {e}")
-
-        messages.success(request, "Quiz créé !")
-        return redirect('quiz_list', course_id=course.id)
-
-    # Sinon, affichage du formulaire
-    context = {
-        "course": course
-    }
-    return render(request, "quiz_create.html", context)
-
-
-from PyPDF2 import PdfReader  # Pour extraire texte des PDF
 
 @csrf_exempt
 def generate_quiz_view(request, course_id):
@@ -1052,6 +851,9 @@ def generate_quiz_view(request, course_id):
 
     quiz_data = generate_quiz_from_text(text)
     return JsonResponse({"questions": quiz_data})
+
+# ============= Content Filter API =============
+
 def check_content_api(request):
     """
     API endpoint pour vérifier le contenu en temps réel
@@ -1093,4 +895,658 @@ def check_content_api(request):
         return JsonResponse({'error': 'Données JSON invalides'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============= Platform Feedback =============
+
+def feedback_list(request):
+    """Liste des feedbacks publics de la plateforme"""
+    feedbacks = PlatformFeedback.objects.filter(is_approved=True).order_by('-created_at')
     
+    context = {
+        'feedbacks': feedbacks,
+    }
+    return render(request, 'feedback_list.html', context)
+
+
+def feedback_create(request):
+    """Créer un nouveau feedback plateforme"""
+    if request.method == 'POST':
+        message = request.POST.get('message')
+        
+        # Validation
+        if not message:
+            messages.error(request, 'Veuillez saisir votre message.')
+            return render(request, 'feedback_create.html', {'user': request.user})
+        
+        if len(message.strip()) < 3:
+            messages.error(request, 'Votre message doit contenir au moins 3 caractères.')
+            return render(request, 'feedback_create.html', {'user': request.user})
+        
+        # Vérifier le contenu inapproprié côté serveur
+        content_result = content_filter.check_content(message)
+        if not content_result['is_appropriate']:
+            messages.error(request, f"Contenu inapproprié détecté : {content_result['message']}")
+            return render(request, 'feedback_create.html', {'user': request.user})
+        
+        # Créer le feedback
+        if request.user.is_authenticated:
+            feedback = PlatformFeedback.objects.create(
+                user=request.user,
+                message=message
+            )
+            messages.success(request, 'Merci pour votre feedback ! Il sera publié après modération.')
+        else:
+            username = request.POST.get('username')
+            email = request.POST.get('email')
+            
+            if not all([username, email]):
+                messages.error(request, 'Veuillez remplir tous les champs.')
+                return render(request, 'feedback_create.html', {'user': request.user})
+            
+            feedback = PlatformFeedback.objects.create(
+                username=username,
+                email=email,
+                message=message
+            )
+            messages.success(request, 'Merci pour votre feedback ! Il sera publié après modération.')
+        
+        return redirect('feedback_list')
+    
+    return render(request, 'feedback_create.html', {'user': request.user})
+
+
+@login_required
+def feedback_admin(request):
+    """Gestion des feedbacks pour les administrateurs"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    feedbacks = PlatformFeedback.objects.all().order_by('-created_at')
+    
+    # Filtres
+    status = request.GET.get('status')
+    if status == 'approved':
+        feedbacks = feedbacks.filter(is_approved=True)
+    elif status == 'pending':
+        feedbacks = feedbacks.filter(is_approved=False)
+    
+    context = {
+        'feedbacks': feedbacks,
+        'total_feedbacks': PlatformFeedback.objects.count(),
+        'approved_feedbacks': PlatformFeedback.objects.filter(is_approved=True).count(),
+        'pending_feedbacks': PlatformFeedback.objects.filter(is_approved=False).count(),
+    }
+    return render(request, 'feedback_admin.html', context)
+
+
+@login_required
+def feedback_approve(request, feedback_id):
+    """Approuver un feedback"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    feedback = get_object_or_404(PlatformFeedback, id=feedback_id)
+    feedback.is_approved = True
+    feedback.save()
+    
+    messages.success(request, 'Feedback approuvé avec succès !')
+    return redirect('feedback_admin')
+
+
+@login_required
+def feedback_reject(request, feedback_id):
+    """Rejeter un feedback"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    feedback = get_object_or_404(PlatformFeedback, id=feedback_id)
+    feedback.is_approved = False
+    feedback.save()
+    
+    messages.success(request, 'Feedback rejeté.')
+    return redirect('feedback_admin')
+
+
+@login_required
+def feedback_edit(request, feedback_id):
+    """Modifier un feedback (propriétaire uniquement)"""
+    feedback = get_object_or_404(PlatformFeedback, id=feedback_id)
+    
+    # Vérifier que l'utilisateur est le propriétaire du feedback
+    if feedback.user != request.user:
+        messages.error(request, 'Vous ne pouvez modifier que vos propres avis.')
+        return redirect('feedback_list')
+    
+    if request.method == 'POST':
+        message = request.POST.get('message')
+        
+        # Validation
+        if not message:
+            messages.error(request, 'Veuillez saisir votre message.')
+            return render(request, 'feedback_edit.html', {'feedback': feedback})
+        
+        if len(message.strip()) < 3:
+            messages.error(request, 'Votre message doit contenir au moins 3 caractères.')
+            return render(request, 'feedback_edit.html', {'feedback': feedback})
+        
+        # Vérifier le contenu inapproprié côté serveur
+        content_result = content_filter.check_content(message)
+        if not content_result['is_appropriate']:
+            messages.error(request, f"Contenu inapproprié détecté : {content_result['message']}")
+            return render(request, 'feedback_edit.html', {'feedback': feedback})
+        
+        # Mettre à jour le feedback
+        feedback.message = message
+        feedback.save()
+        
+        messages.success(request, 'Votre avis a été modifié avec succès !')
+        return redirect('feedback_list')
+    
+    return render(request, 'feedback_edit.html', {'feedback': feedback})
+
+
+@login_required
+def feedback_delete(request, feedback_id):
+    """Supprimer un feedback (propriétaire uniquement)"""
+    feedback = get_object_or_404(PlatformFeedback, id=feedback_id)
+    
+    # Vérifier que l'utilisateur est le propriétaire du feedback
+    if feedback.user != request.user:
+        messages.error(request, 'Vous ne pouvez supprimer que vos propres avis.')
+        return redirect('feedback_list')
+    
+    if request.method == 'POST':
+        feedback.delete()
+        messages.success(request, 'Votre avis a été supprimé avec succès.')
+        return redirect('feedback_list')
+    
+    return render(request, 'feedback_delete.html', {'feedback': feedback})
+
+
+# ============= Gestion des événements =============
+# ---------- Formulaire d'événement ----------
+class EventForm(forms.ModelForm):
+    class Meta:
+        model = Event
+        fields = ['title', 'description', 'start_time', 'end_time', 'location', 'is_online', 'image', 'max_participants']
+        widgets = {
+            'start_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'end_time': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+        now = timezone.now()
+
+        # Autoriser "maintenant" et le futur, interdire le passé
+        if start_time and start_time < now:
+            self.add_error('start_time', "La date de début ne doit pas être dans le passé.")
+
+        # La date de fin doit être après la date de début
+        if start_time and end_time and end_time <= start_time:
+            self.add_error('end_time', "La date de fin doit être après la date de début.")
+
+        return cleaned_data
+
+
+
+# ---------- Vues pour les événements ----------
+def event_list(request):
+    """Vue publique qui affiche tous les événements (passés, en cours et futurs)"""
+    current_time = timezone.now()
+    # Récupérer tous les événements (passés, en cours et futurs)
+    events = Event.objects.all().order_by('-start_time')
+    
+    # Filtres
+    event_type = request.GET.get('type')
+    search = request.GET.get('search')
+    
+    if event_type:
+        events = events.filter(is_online=(event_type == 'online'))
+    
+    if search:
+        events = events.filter(
+            Q(title__icontains=search) |
+            Q(description__icontains=search) |
+            Q(location__icontains=search)
+        )
+    
+    participated_event_ids = []
+    if request.user.is_authenticated:
+        participated_event_ids = list(
+            Participation.objects.filter(user=request.user)
+            .values_list('event_id', flat=True)
+        )
+
+    # Calcul des statistiques d'avis par événement
+    feedback_stats = {}
+    if events.exists():
+        event_ids = list(events.values_list('id', flat=True))
+        feedback_qs = EventFeedback.objects.filter(event_id__in=event_ids)
+        # Pré-initialiser
+        for eid in event_ids:
+            feedback_stats[eid] = {
+                'total': 0,
+                'avg': 0.0,
+                'ratings': {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                'ratings_pct': {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0},
+                'sentiment': {'pos': 0, 'neu': 0, 'neg': 0},
+                'sentiment_pct': {'pos': 0.0, 'neu': 0.0, 'neg': 0.0},
+                'breakdown': [],  # list of dicts: {'star': int, 'pct': float}
+            }
+        # Remplir les comptes par note
+        for fb in feedback_qs.values('event_id', 'rating', 'sentiment_score'):
+            eid = fb['event_id']
+            rating = int(fb['rating']) if fb['rating'] else 0
+            feedback_stats[eid]['total'] += 1
+            if rating in feedback_stats[eid]['ratings']:
+                feedback_stats[eid]['ratings'][rating] += 1
+            score = fb.get('sentiment_score')
+            if score is not None:
+                if score >= 0.6:
+                    feedback_stats[eid]['sentiment']['pos'] += 1
+                elif score < 0.4:
+                    feedback_stats[eid]['sentiment']['neg'] += 1
+                else:
+                    feedback_stats[eid]['sentiment']['neu'] += 1
+        # Moyennes et pourcentages
+        for eid, stats in feedback_stats.items():
+            total = stats['total']
+            if total > 0:
+                s = sum(star * count for star, count in stats['ratings'].items())
+                stats['avg'] = round(s / total, 1)
+                for star, count in stats['ratings'].items():
+                    stats['ratings_pct'][star] = round(count * 100.0 / total, 1)
+                pos = stats['sentiment']['pos']
+                neu = stats['sentiment']['neu']
+                neg = stats['sentiment']['neg']
+                stats['sentiment_pct']['pos'] = round(pos * 100.0 / total, 1)
+                stats['sentiment_pct']['neu'] = round(neu * 100.0 / total, 1)
+                stats['sentiment_pct']['neg'] = round(neg * 100.0 / total, 1)
+                # Construct ordered breakdown 5 -> 1
+                stats['breakdown'] = [
+                    {'star': star, 'pct': stats['ratings_pct'][star]}
+                    for star in [5,4,3,2,1]
+                ]
+
+        # Attacher les stats sur chaque objet event pour un accès simple dans le template
+        events_map = {e.id: e for e in events}
+        for eid, stats in feedback_stats.items():
+            evt = events_map.get(eid)
+            if evt is not None:
+                setattr(evt, 'feedback_stats', stats)
+
+    context = {
+        'events': events,
+        'current_filter': event_type,
+        'search_query': search,
+        'now': current_time,
+        'participated_event_ids': participated_event_ids,
+        'feedback_stats': feedback_stats,
+    }
+    return render(request, 'events_front.html', context)
+
+@login_required
+def event_detail(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    participants = event.participants.all()  # ManyToMany via Participation
+    return render(request, 'event_detail.html', {'event': event, 'participants': participants})
+
+from django.http import JsonResponse
+
+@login_required
+def event_create(request):
+    if request.method == 'POST':
+        form = EventForm(request.POST)
+        if form.is_valid():
+            event = form.save(commit=False)
+            event.created_by = request.user
+            # Validation: start_time must NOT be in the past (allow now and future)
+            if event.start_time < timezone.now():
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'status': 'error', 'errors': {'start_time': ["La date de début ne doit pas être dans le passé."]}}, status=400)
+                messages.error(request, "La date de début ne doit pas être dans le passé.")
+                return render(request, 'events_admin.html', {'form': form})
+
+            event.save()
+            # Image upload or AI generation
+            if 'image' in request.FILES:
+                event.image = request.FILES['image']
+                event.save(update_fields=['image'])
+            else:
+                img_bytes = generate_event_image(event.title, event.description or '')
+                if img_bytes:
+                    event.image.save(f"event_{event.id}.png", ContentFile(img_bytes), save=True)
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Événement créé avec succès',
+                    'redirect': '/dashboard/events/'
+                })
+            return redirect('events_admin')
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'error',
+                    'errors': form.errors
+                })
+    else:
+        form = EventForm()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return render(request, 'event_form.html', {'form': form})
+    return render(request, 'events_admin.html', {'form': form})
+
+@login_required
+def event_edit(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    
+    # Vérifier que l'utilisateur est le créateur ou admin
+    if event.created_by != request.user and request.user.role != 'ADMIN':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'status': 'error',
+                'message': "Vous n'êtes pas autorisé(e) à modifier cet événement."
+            }, status=403)
+        messages.error(request, "Vous n'êtes pas autorisé(e) à modifier cet événement.")
+        return redirect('event_detail', event_id=event_id)
+
+    if request.method == 'POST':
+        form = EventForm(request.POST, instance=event)
+        if form.is_valid():
+            updated = form.save(commit=False)
+            if updated.start_time < timezone.now():
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'status': 'error', 'errors': {'start_time': ["La date de début ne doit pas être dans le passé."]}}, status=400)
+                messages.error(request, 'La date de début ne doit pas être dans le passé.')
+                return render(request, 'event_form.html', {'form': form, 'event': event})
+            updated.save()
+            if 'image' in request.FILES:
+                updated.image = request.FILES['image']
+                updated.save(update_fields=['image'])
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Événement modifié avec succès',
+                    'redirect': '/dashboard/events/'
+                })
+            
+            messages.success(request, 'Événement modifié avec succès')
+            return redirect('events_admin')
+        else:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'error',
+                    'errors': form.errors
+                })
+    
+    else:
+        # REQUÊTE GET - Retourner le formulaire pré-rempli
+        form = EventForm(instance=event)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            # Retourner le formulaire HTML pour AJAX
+            return render(request, 'event_form.html', {
+                'form': form,
+                'event': event
+            })
+        
+        return render(request, 'event_form.html', {'form': form, 'event': event})
+@login_required
+def event_delete(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+
+    # Vérifier que l'utilisateur est le créateur
+    if event.created_by != request.user:
+        messages.error(request, "Vous n'êtes pas autorisé(e) à supprimer cet événement.")
+        return redirect('event_detail', event_id=event_id)
+
+    event.delete()
+    messages.success(request, f'Événement "{event.title}" supprimé avec succès !')
+    return redirect('event_list')
+
+@login_required
+def participate_event(request, event_id):
+    """Gérer la participation à un événement"""
+    event = get_object_or_404(Event, id=event_id)
+    
+    # Vérifier si l'événement n'est pas terminé
+    if event.end_time < timezone.now():
+        messages.error(request, "Cet événement est déjà terminé.")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Événement terminé'
+        })
+    # Vérifier capacité
+    if event.max_participants is not None and event.participants.count() >= event.max_participants:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Événement complet'
+        }, status=400)
+    
+    # Créer la participation si elle n'existe pas
+    participation, created = Participation.objects.get_or_create(
+        user=request.user,
+        event=event
+    )
+    
+    message = "Vous participez maintenant à cet événement!" if created else "Vous êtes déjà inscrit à cet événement."
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'status': 'success',
+            'message': message,
+            'participant_count': event.participants.count()
+        })
+    
+    messages.success(request, message)
+    return redirect('event_list')
+
+@login_required
+def events_admin(request):
+    """Vue pour la gestion des événements dans l'interface admin"""
+    # Vérifier que l'utilisateur est admin
+    if request.user.role != 'ADMIN':
+        messages.error(request, "Vous n'avez pas accès à cette page.")
+        return redirect('dashboard')
+    
+    # Récupérer tous les événements
+    events = Event.objects.all().order_by('-start_time')
+
+    # Calculer stats feedback par événement (même logique que front)
+    feedback_stats = {}
+    if events.exists():
+        event_ids = list(events.values_list('id', flat=True))
+        feedback_qs = EventFeedback.objects.filter(event_id__in=event_ids)
+        for eid in event_ids:
+            feedback_stats[eid] = {
+                'total': 0,
+                'avg': 0.0,
+                'ratings': {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+                'ratings_pct': {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0},
+                'sentiment': {'pos': 0, 'neu': 0, 'neg': 0},
+                'sentiment_pct': {'pos': 0.0, 'neu': 0.0, 'neg': 0.0},
+                'breakdown': [],
+            }
+        for fb in feedback_qs.values('event_id', 'rating', 'sentiment_score'):
+            eid = fb['event_id']
+            rating = int(fb['rating']) if fb['rating'] else 0
+            feedback_stats[eid]['total'] += 1
+            if rating in feedback_stats[eid]['ratings']:
+                feedback_stats[eid]['ratings'][rating] += 1
+            score = fb.get('sentiment_score')
+            if score is not None:
+                if score >= 0.6:
+                    feedback_stats[eid]['sentiment']['pos'] += 1
+                elif score < 0.4:
+                    feedback_stats[eid]['sentiment']['neg'] += 1
+                else:
+                    feedback_stats[eid]['sentiment']['neu'] += 1
+        for eid, stats in feedback_stats.items():
+            total = stats['total']
+            if total > 0:
+                s = sum(star * count for star, count in stats['ratings'].items())
+                stats['avg'] = round(s / total, 1)
+                for star, count in stats['ratings'].items():
+                    stats['ratings_pct'][star] = round(count * 100.0 / total, 1)
+                pos = stats['sentiment']['pos']
+                neu = stats['sentiment']['neu']
+                neg = stats['sentiment']['neg']
+                stats['sentiment_pct']['pos'] = round(pos * 100.0 / total, 1)
+                stats['sentiment_pct']['neu'] = round(neu * 100.0 / total, 1)
+                stats['sentiment_pct']['neg'] = round(neg * 100.0 / total, 1)
+                stats['breakdown'] = [
+                    {'star': star, 'pct': stats['ratings_pct'][star]}
+                    for star in [5,4,3,2,1]
+                ]
+
+        # Attacher sur chaque event
+        events_map = {e.id: e for e in events}
+        for eid, stats in feedback_stats.items():
+            evt = events_map.get(eid)
+            if evt is not None:
+                setattr(evt, 'feedback_stats', stats)
+
+    return render(request, 'events_admin.html', {
+        'events': events,
+        'now': timezone.now(),
+    })
+
+@login_required
+def event_participants(request, event_id):
+    """Page de gestion des participants pour un événement"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, "Accès non autorisé.")
+        return redirect('dashboard')
+    
+    event = get_object_or_404(Event, id=event_id)
+    participants = event.participants.select_related('user').all()
+    
+    # Statistiques
+    stats = {
+        'total': participants.count(),
+        'confirmed': participants.filter(status='CONFIRMED').count(),
+        'registered': participants.filter(status='REGISTERED').count(),
+        'cancelled': participants.filter(status='CANCELLED').count(),
+    }
+    
+    context = {
+        'event': event,
+        'participants': participants,
+        'stats': stats,
+    }
+    return render(request, 'event_participants.html', context)
+
+@login_required
+def update_participation_status(request, event_id, user_id):
+    """Mettre à jour le statut d'un participant"""
+    if request.user.role != 'ADMIN':
+        return JsonResponse({'error': 'Non autorisé'}, status=403)
+    
+    if request.method == 'POST':
+        participation = get_object_or_404(Participation, event_id=event_id, user_id=user_id)
+        new_status = request.POST.get('status')
+        
+        if new_status in ['REGISTERED', 'CONFIRMED', 'CANCELLED']:
+            participation.status = new_status
+            participation.save()
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'new_status': new_status})
+            
+            messages.success(request, f"Statut mis à jour pour {participation.user.username}")
+        
+        return redirect('event_participants', event_id=event_id)
+    
+    # Déplacer cette fonction au même niveau que les autres vues (pas à l'intérieur d'une autre fonction)
+
+@login_required
+def create_test_finished_event(request):
+    """Créer un événement de test déjà terminé et inscrire l'utilisateur courant"""
+    now = timezone.now()
+    event = Event.objects.create(
+        title=f"Événement Test Terminé {now.strftime('%Y-%m-%d %H:%M:%S')}",
+        description="Événement de test pour le feedback",
+        start_time=now - timezone.timedelta(hours=2),
+        end_time=now - timezone.timedelta(minutes=1),
+        location="Salle virtuelle",
+        is_online=True,
+        created_by=request.user,
+    )
+
+    # Inscrire l'utilisateur courant comme participant pour afficher le bouton feedback
+    Participation.objects.get_or_create(user=request.user, event=event, defaults={'status': 'REGISTERED'})
+
+    messages.success(request, f'Événement de test créé: "{event.title}". Il est déjà terminé. Vous pouvez donner un avis.')
+    return redirect('event_list')
+@login_required
+@csrf_exempt
+def submit_feedback(request, event_id):
+    if request.method == 'POST':
+        try:
+            event = Event.objects.get(id=event_id)
+        except Event.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Événement introuvable.'}, status=404)
+
+        # Autoriser l'avis si l'utilisateur a participé OU si l'événement est terminé
+        has_participated = Participation.objects.filter(user=request.user, event=event, status__in=['REGISTERED', 'CONFIRMED']).exists()
+        if not has_participated and event.end_time >= timezone.now():
+            return JsonResponse({'status': 'error', 'message': 'Vous pourrez donner un avis à la fin de l\'événement.'}, status=403)
+
+        rating_raw = request.POST.get('rating')
+        rating = int(rating_raw) if rating_raw and rating_raw.isdigit() else None
+        comment = request.POST.get('comment', '').strip()
+
+        if not comment:
+            return JsonResponse({'status': 'error', 'message': 'Veuillez saisir un avis (texte) pour l’analyse IA.'}, status=400)
+
+        # Analyse du sentiment avec Hugging Face (multilingue)
+        # Ce modèle retourne: {'label': '5 stars', 'score': 0.xxx} ou {'label': '1 star', 'score': 0.xxx}
+        sentiment_score = 0.5  # Par défaut neutre
+        if comment:
+            try:
+                sentiment_analyzer = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+                sentiment_result = sentiment_analyzer(comment[:512])
+                # Le résultat est une liste avec dict: {'label': '5 stars', 'score': 0.xxx}
+                if sentiment_result and len(sentiment_result) > 0:
+                    result = sentiment_result[0]
+                    label = result.get('label', '')
+                    score = float(result.get('score', 0.5))
+                    
+                    # Convertir le label en sentiment_score basé sur les étoiles
+                    # 5 stars -> positif (> 0.8), 4 stars -> plutôt positif (> 0.6)
+                    # 3 stars -> neutre (0.4-0.6), 2-1 stars -> négatif (< 0.4)
+                    if '5 stars' in label:
+                        sentiment_score = 0.9
+                    elif '4 stars' in label:
+                        sentiment_score = 0.7
+                    elif '3 stars' in label:
+                        sentiment_score = 0.5
+                    elif '2 stars' in label:
+                        sentiment_score = 0.3
+                    elif '1 star' in label:
+                        sentiment_score = 0.1
+                    else:
+                        sentiment_score = score
+                    
+                    print(f"[DEBUG] Comment: '{comment[:50]}...' | Label: {label} | Score: {sentiment_score} | Original: {score}")
+            except Exception as e:
+                print(f"[ERROR] Sentiment analysis failed: {e}")
+                sentiment_score = 0.5
+
+        EventFeedback.objects.update_or_create(
+            user=request.user,
+            event=event,
+            defaults={'rating': rating, 'comment': comment, 'sentiment_score': sentiment_score}
+        )
+
+        return JsonResponse({'status': 'success', 'message': 'Merci pour votre avis !'})
+
+    return JsonResponse({'status': 'error', 'message': 'Méthode non autorisée.'}, status=405)
