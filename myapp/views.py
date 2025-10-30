@@ -1,9 +1,15 @@
+from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
+
 from django import forms
 from django.http import JsonResponse
 from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Event, Participation, EventFeedback, PlatformFeedback, Reclamation
@@ -151,6 +157,263 @@ Data Science Pratique | Analyse de données"""
     return []
 
 # ============= Pages publiques =============
+
+from .models import User, Course, Enrollment, Quiz
+from django.http import JsonResponse
+import json
+import re
+import os
+import logging
+import requests
+
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import get_object_or_404
+
+from .models import Course
+
+logger = logging.getLogger(__name__)
+
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_API_KEY = getattr(settings, "GROQ_API_KEY", None)
+
+# -------------------------
+# Utilitaires
+# -------------------------
+def chunk_text(text, max_chars=1000):
+    """Découpe le texte en chunks cohérents."""
+    if not text:
+        return []
+    text = text.strip()
+    text = re.sub(r'\s+', ' ', text)
+    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    if not paragraphs:
+        paragraphs = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+
+    chunks = []
+    current = ""
+    for para in paragraphs:
+        if len(current) + len(para) + 2 < max_chars:
+            current = f"{current}\n\n{para}" if current else para
+        else:
+            if current:
+                chunks.append(current)
+            current = para
+    if current:
+        chunks.append(current)
+    if not chunks and text:
+        chunks = [text[:max_chars]]
+    return chunks
+
+def find_relevant_chunks(question, chunks, top_k=3):
+    """Score simple par overlap lexical et retourne les meilleurs chunks."""
+    q_words = set(re.findall(r'\w+', question.lower()))
+    scored = []
+    for i, chunk in enumerate(chunks):
+        cw = set(re.findall(r'\w+', chunk.lower()))
+        common = len(q_words & cw)
+        # léger bonus pour premiers chunks
+        score = common + (1 if i < 2 else 0)
+        if score > 0:
+            scored.append((score, chunk))
+    if not scored:
+        return chunks[:top_k]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [c for _, c in scored[:top_k]]
+
+def compute_confidence(question, context, method):
+    """Retourne un score 0..1 basé sur overlap simple + méthode."""
+    q_words = set(re.findall(r'\w+', question.lower()))
+    ctx_words = set(re.findall(r'\w+', context.lower()))
+    if not q_words:
+        return 0.45 if method == "fallback" else 0.75
+    overlap = len(q_words & ctx_words) / len(q_words)
+    if method == "groq":
+        score = 0.6 + 0.35 * overlap
+    else:
+        score = 0.25 + 0.5 * overlap
+    score = max(0.1, min(score, 0.98))
+    return round(score, 2)
+
+# -------------------------
+# Llamas / Groq
+# -------------------------
+def ask_groq(question, context, mode="strict"):
+    """
+    Appel Groq. mode currently ignored (kept for extensibilité).
+    Retour: (answer_str or None, success_bool)
+    """
+    if not GROQ_API_KEY:
+        logger.error("GROQ_API_KEY non configurée.")
+        return None, False
+
+    # Prompt : on demande au modèle d'utiliser le contexte (strict)
+    prompt = (
+        "Tu es un assistant pédagogique expert. Réponds en français, de façon claire et concise.\n"
+        "Utilise d'abord le CONTENU DU COURS fourni. Si la réponse n'est pas dans le contenu, "
+        "dis clairement que l'information n'est pas disponible dans le cours.\n\n"
+        f"CONTENU DU COURS:\n{context}\n\nQUESTION:\n{question}\n\nRÉPONSE:"
+    )
+
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "Tu es un assistant pédagogique expert."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 600,
+        "top_p": 0.9
+    }
+
+    try:
+        resp = requests.post(
+            GROQ_API_URL,
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json=payload,
+            timeout=30
+        )
+    except requests.exceptions.Timeout:
+        logger.exception("Groq timeout")
+        return None, False
+    except requests.exceptions.RequestException as e:
+        logger.exception("Erreur réseau Groq: %s", e)
+        return None, False
+
+    if resp.status_code != 200:
+        logger.error("Groq returned %s: %s", resp.status_code, resp.text)
+        return None, False
+
+    try:
+        data = resp.json()
+    except ValueError:
+        logger.error("Groq returned non-json")
+        return None, False
+
+    # parsing robuste
+    answer = None
+    try:
+        choices = data.get("choices")
+        if choices and len(choices) > 0:
+            choice = choices[0]
+            msg = choice.get("message") or {}
+            if isinstance(msg, dict) and msg.get("content"):
+                answer = msg.get("content")
+            elif choice.get("text"):
+                answer = choice.get("text")
+            else:
+                # trouver première valeur string non vide
+                for v in choice.values():
+                    if isinstance(v, str) and v.strip():
+                        answer = v
+                        break
+    except Exception as e:
+        logger.exception("Erreur parsing Groq response: %s", e)
+        return None, False
+
+    if not answer:
+        logger.error("Aucune réponse trouvée dans payload Groq")
+        return None, False
+
+    return answer.strip(), True
+
+# -------------------------
+# Endpoint Q&A
+# -------------------------
+@csrf_exempt
+def course_qa(request, course_id):
+    """
+    POST JSON: { "question": "..." }
+    Retour JSON: { question, answer, method, confidence, sources }
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Méthode non autorisée"}, status=405)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"error": "Format JSON invalide."}, status=400)
+
+    question = (payload.get("question") or "").strip()
+    if not question:
+        return JsonResponse({"error": "Aucune question reçue."}, status=400)
+    if len(question) > 1500:
+        return JsonResponse({"error": "Question trop longue (max 1500 caractères)."}, status=400)
+
+    course = get_object_or_404(Course, id=course_id)
+    context = (course.description or "") + "\n\n" + (course.content or "")
+
+    # chunks & recherche simple pour produire sources
+    chunks = chunk_text(context, max_chars=1200)
+    relevant = find_relevant_chunks(question, chunks, top_k=3)
+    if not relevant:
+        relevant = chunks[:2] if chunks else [context[:1200]]
+
+    context_for_llm = "\n\n".join(relevant)
+    if len(context_for_llm) > 3500:
+        context_for_llm = context_for_llm[:3500] + "\n\n[...]"
+
+    answer, success = ask_groq(question, context_for_llm)
+    if not success or not answer:
+        answer = generate_fallback(question=question, context=context_for_llm)
+        method = "fallback"
+    else:
+        method = "groq"
+
+    # préparer sources (aperçus)
+    sources = []
+    for c in relevant[:3]:
+        preview = c[:300] + "..." if len(c) > 300 else c
+        sources.append({"text": preview})
+
+    confidence = compute_confidence(question, context_for_llm, method)
+
+    logger.info("Q&A course=%s method=%s success=%s", course_id, method, success)
+
+    return JsonResponse({
+        "question": question,
+        "answer": answer,
+        "method": method,
+        "confidence": confidence,
+        "sources": sources
+    })
+
+# fallback generator réutilisable
+def generate_fallback(question, context):
+    """Génère un fallback à partir du contexte (phrases les plus pertinentes)."""
+    if not context:
+        return "❌ Je n’ai pas trouvé cette information dans le cours."
+
+    sentences = re.split(r'(?<=[.!?])\s+', context.strip())
+    q_words = set(re.findall(r'\w+', question.lower()))
+    scored = []
+    for s in sentences:
+        s_clean = s.strip()
+        if len(s_clean) < 30 or len(s_clean) > 600:
+            continue
+        s_words = set(re.findall(r'\w+', s_clean.lower()))
+        score = len(q_words & s_words)
+        if score > 0:
+            scored.append((score, s_clean))
+    if not scored:
+        # retourner quelques extraits si rien de pertinent
+        fallback_list = [s for s in sentences if 40 <= len(s) <= 300][:2]
+        if fallback_list:
+            return "📝 Extraits du cours pertinents :\n\n" + "\n\n".join(f"• {s}" for s in fallback_list)
+        return "❌ Je n’ai pas trouvé cette information dans le cours."
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = [s for _, s in scored[:2]]
+    return "📝 Extraits du cours pertinents :\n\n" + "\n\n".join(f"• {s}" for s in top)
+
+
+
+
+
+
 
 def home(request):
     """Page d'accueil publique"""
@@ -482,6 +745,24 @@ def course_edit(request, course_id):
     
     context = {'course': course}
     return render(request, 'course_edit.html', context)
+@login_required
+def course_delete(request, course_id):
+    """Supprimer un cours (enseignants uniquement)"""
+    course = get_object_or_404(Course, id=course_id)
+    
+    # Vérifier que l'utilisateur est bien le propriétaire du cours
+    if course.teacher != request.user:
+        messages.error(request, "Vous n'êtes pas autorisé à supprimer ce cours.")
+        return redirect('course_detail', course_id=course.id)
+    
+    if request.method == 'POST':
+        title = course.title
+        course.delete()
+        messages.success(request, f'Le cours "{title}" a été supprimé avec succès.')
+        return redirect('dashboard')
+    
+    # Page de confirmation (optionnelle)
+    return render(request, 'course_delete_confirm.html', {'course': course})
 
 
 # ============= Quiz =============

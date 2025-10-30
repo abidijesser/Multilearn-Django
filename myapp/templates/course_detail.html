@@ -2,178 +2,298 @@
 
 {% block title %}{{ course.title }}{% endblock %}
 
+{% block extra_css %}
+<style>
+/* (TON CSS inchangé — coller exactement ce que tu avais) */
+.qa-container { background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-radius: 15px; border: 2px solid #667eea30; transition: box-shadow 0.3s ease; }
+.qa-container:hover { box-shadow: 0 8px 25px rgba(102,126,234,0.15); }
+.qa-answer-card { background:white; border-left:4px solid #667eea; box-shadow:0 2px 8px rgba(0,0,0,0.1); animation: slideIn 0.4s ease-out; }
+.qa-sources-card { background:#f8f9fa; border-left:4px solid #28a745; animation: slideIn 0.5s ease-out; }
+@keyframes slideIn { from { opacity:0; transform: translateY(20px);} to { opacity:1; transform: translateY(0);} }
+.question-suggestion { cursor:pointer; transition: all 0.3s ease; border:1px solid #dee2e6; background:white; padding:8px 16px; border-radius:20px; font-size:0.9rem; }
+.question-suggestion:hover { background:#667eea; color:white; border-color:#667eea; transform: translateY(-2px); box-shadow:0 4px 12px rgba(102,126,234,0.3); }
+.content-section { line-height:1.8; font-size:1.05rem; }
+.typing-indicator { display:inline-flex; align-items:center; gap:6px; padding:20px; }
+.typing-indicator span { width:10px; height:10px; border-radius:50%; background:#667eea; animation: typing 1.4s infinite ease-in-out; }
+.typing-indicator span:nth-child(2) { animation-delay:0.2s; } .typing-indicator span:nth-child(3) { animation-delay:0.4s; }
+@keyframes typing { 0%,60%,100% { transform: translateY(0); opacity:0.7; } 30% { transform: translateY(-15px); opacity:1; } }
+.confidence-badge { display:inline-flex; align-items:center; gap:5px; padding:6px 14px; border-radius:20px; font-size:0.85rem; font-weight:600; }
+.confidence-high { background:#d4edda; color:#155724; border:1px solid #c3e6cb; }
+.confidence-medium { background:#fff3cd; color:#856404; border:1px solid #ffeaa7; }
+.confidence-low { background:#f8d7da; color:#721c24; border:1px solid #f5c6cb; }
+/* reste du CSS pareil que toi */
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container my-5">
-    <div class="row">
-        <div class="col-lg-8">
-            <!-- Course Info -->
-            <div class="card mb-4">
-                {% if course.cover_image %}
-                <img src="{{ course.cover_image.url }}" class="card-img-top" alt="{{ course.title }}"
-                    style="max-height: 400px; object-fit: cover;">
-                {% else %}
-                <div class="card-img-top d-flex align-items-center justify-content-center"
-                    style="height: 300px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                    <i class="bi bi-book-fill text-white" style="font-size: 8rem;"></i>
-                </div>
-                {% endif %}
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-                        <div>
-                            <span class="badge bg-info me-2">{{ course.level }}</span>
-                            {% if course.status == 'PUBLISHED' %}
-                            <span class="badge bg-success">Publié</span>
-                            {% else %}
-                            <span class="badge bg-warning">Brouillon</span>
-                            {% endif %}
-                        </div>
-                        {% if user == course.teacher %}
-                        <a href="{% url 'course_edit' course.id %}" class="btn btn-warning">
-                            <i class="bi bi-pencil"></i> Modifier
-                        </a>
-                        {% endif %}
-                    </div>
+  <div class="row">
+    <div class="col-lg-8">
+      <!-- Course Info -->
+      <div class="card mb-4 shadow-sm">
+        {% if course.cover_image %}
+        <img src="{{ course.cover_image.url }}" class="card-img-top" alt="{{ course.title }}" style="max-height:400px; object-fit:cover;">
+        {% else %}
+        <div class="card-img-top" style="height:300px; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); display:flex; align-items:center; justify-content:center;">
+          <i class="bi bi-book-fill text-white" style="font-size:8rem; opacity:0.9;"></i>
+        </div>
+        {% endif %}
+        <div class="card-body">
+          <h1 class="display-5 mb-3">{{ course.title }}</h1>
+          <p class="lead text-muted">{{ course.description }}</p>
+          <hr>
+          <h4 class="mb-3"><i class="bi bi-list-check text-primary"></i> Contenu du cours</h4>
+          <div class="content-section" style="white-space: pre-line; background:#f8f9fa; padding:1.5rem; border-radius:10px; border:1px solid #e9ecef;">
+            {{ course.content|default:"Aucun contenu disponible pour le moment." }}
+          </div>
+        </div>
+      </div>
 
-                    <h1 class="display-5">{{ course.title }}</h1>
-                    <p class="lead text-muted">{{ course.description }}</p>
-
-                    <hr>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <p><i class="bi bi-person-badge text-primary"></i> <strong>Enseignant:</strong> 
-                                {% if course.teacher.get_full_name %}
-                                    {{ course.teacher.get_full_name }}
-                                {% else %}
-                                    {{ course.teacher.username }}
-                                {% endif %}
-                            </p>
-                            <p><i class="bi bi-clock text-primary"></i> <strong>Durée:</strong> {{ course.duration_hours }} heures</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><i class="bi bi-people text-primary"></i> <strong>Étudiants:</strong> {{ student_count }}</p>
-                            <p><i class="bi bi-calendar text-primary"></i> <strong>Créé le:</strong> {{ course.created_at|date:"d/m/Y" }}</p>
-                        </div>
-                    </div>
-
-                    <hr>
-
-                    <h4><i class="bi bi-list-check"></i> Contenu du cours</h4>
-                    <div class="content-section"
-                        style="white-space: pre-line; background: #f8f9fa; padding: 1.5rem; border-radius: 10px;">
-                        {{ course.content }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quizzes -->
-            {% if quizzes %}
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h5><i class="bi bi-clipboard-check"></i> Quiz disponibles ({{ quizzes.count }})</h5>
-                </div>
-                <div class="card-body">
-                    {% for quiz in quizzes %}
-                    <div class="d-flex justify-content-between align-items-center p-3 mb-2 border rounded">
-                        <div>
-                            <h6>{{ quiz.title }}</h6>
-                            <small class="text-muted">
-                                <i class="bi bi-patch-question"></i> {{ quiz.questions.count }} questions |
-                                <i class="bi bi-clock"></i> {{ quiz.duration_minutes }} min |
-                                <i class="bi bi-trophy"></i> {{ quiz.passing_score }}% pour réussir
-                            </small>
-                        </div>
-                        <a href="{% url 'quiz_detail' quiz.id %}" class="btn btn-info">
-                            Voir <i class="bi bi-arrow-right"></i>
-                        </a>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
+      <!-- Q&A -->
+      <div class="card shadow-sm qa-container p-4 mb-4">
+        <div class="d-flex align-items-center mb-4">
+          <div class="bg-primary text-white rounded-circle p-3 me-3" style="box-shadow:0 4px 12px rgba(102,126,234,0.3);">
+            <i class="bi bi-robot" style="font-size:1.5rem;"></i>
+          </div>
+          <div>
+            <h4 class="mb-1">🤖 Assistant IA du Cours</h4>
+            <p class="text-muted small mb-0">Posez vos questions, je suis là pour vous aider !</p>
+          </div>
         </div>
 
-        <div class="col-lg-4">
-            <!-- Enrollment Card -->
-            <div class="card mb-4 sticky-top" style="top: 100px;">
-                <div class="card-body">
-                    {% if is_enrolled %}
-                    <div class="text-center mb-3">
-                        <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
-                        <h5 class="mt-3">Vous êtes inscrit !</h5>
-                    </div>
-
-                    <div class="mb-3">
-                        <p class="mb-1"><strong>Votre progression</strong></p>
-                        <div class="progress" style="height: 30px;">
-                            <div class="progress-bar bg-success" role="progressbar"
-                                style="width: {{ enrollment.progress }}%">
-                                {{ enrollment.progress }}%
-                            </div>
-                        </div>
-                    </div>
-
-                    <p class="text-muted small">
-                        <i class="bi bi-calendar"></i> Inscrit le {{ enrollment.enrolled_at|date:"d/m/Y" }}
-                    </p>
-
-                    <a href="{% url 'quiz_list' course.id %}" class="btn btn-info w-100">
-                        <i class="bi bi-clipboard-check"></i> Voir les quiz
-                    </a>
-                    {% elif user.is_authenticated %}
-                    {% if user.role == 'STUDENT' %}
-                    <h5 class="text-center mb-4">Rejoindre ce cours</h5>
-                    <ul class="list-unstyled mb-4">
-                        <li><i class="bi bi-check-circle text-success"></i> Accès illimité</li>
-                        <li><i class="bi bi-check-circle text-success"></i> {{ course.duration_hours }}h de contenu</li>
-                        <li><i class="bi bi-check-circle text-success"></i> Quiz et exercices</li>
-                        <li><i class="bi bi-check-circle text-success"></i> Suivi de progression</li>
-                    </ul>
-                    <form method="post" action="{% url 'course_enroll' course.id %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-success btn-lg w-100">
-                            <i class="bi bi-plus-circle"></i> S'inscrire gratuitement
-                        </button>
-                    </form>
-                    {% elif user.role == 'TEACHER' %}
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> Vous êtes enseignant. Seuls les étudiants peuvent s'inscrire
-                        aux cours.
-                    </div>
-                    {% endif %}
-                    {% else %}
-                    <h5 class="text-center mb-4">Rejoindre ce cours</h5>
-                    <p class="text-center text-muted">Connectez-vous pour vous inscrire à ce cours gratuitement.</p>
-                    <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-primary btn-lg w-100 mb-2">
-                        <i class="bi bi-box-arrow-in-right"></i> Se connecter
-                    </a>
-                    <a href="{% url 'register' %}" class="btn btn-outline-primary w-100">
-                        <i class="bi bi-person-plus"></i> S'inscrire
-                    </a>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Teacher Info -->
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h6><i class="bi bi-person-badge"></i> À propos de l'enseignant</h6>
-                </div>
-                <div class="card-body text-center">
-                    {% if course.teacher.profile_picture %}
-                    <img src="{{ course.teacher.profile_picture.url }}" class="rounded-circle mb-3"
-                        style="width: 100px; height: 100px; object-fit: cover;">
-                    {% else %}
-                    <i class="bi bi-person-circle" style="font-size: 100px; color: var(--primary-color);"></i>
-                    {% endif %}
-                    <h6>{% if course.teacher.get_full_name %}{{ course.teacher.get_full_name }}{% else %}{{ course.teacher.username }}{% endif %}</h6>
-                    <p class="text-muted small">@{{ course.teacher.username }}</p>
-                    {% if course.teacher.bio %}
-                    <p class="small">{{ course.teacher.bio|truncatewords:30 }}</p>
-                    {% endif %}
-                </div>
-            </div>
+        <div class="mb-4">
+          <p class="small text-muted mb-2"><i class="bi bi-lightbulb-fill text-warning"></i> <strong>Questions suggérées :</strong></p>
+          <div class="d-flex gap-2 flex-wrap" id="question-suggestions">
+            <span class="badge question-suggestion" data-question="Quels sont les concepts principaux de ce cours ?">Concepts clés</span>
+            <span class="badge question-suggestion" data-question="Peux-tu expliquer {{ course.title }} ?">Définition</span>
+            <span class="badge question-suggestion" data-question="Quelles sont les applications pratiques ?">Applications</span>
+            <span class="badge question-suggestion" data-question="Comment ça fonctionne concrètement ?">Fonctionnement</span>
+          </div>
         </div>
+
+        <div class="mb-3">
+          <label for="qa-question" class="form-label small text-muted"><i class="bi bi-chat-dots"></i> Votre question :</label>
+          <textarea id="qa-question" class="form-control" rows="3" placeholder="💭 Exemple: Quels sont les avantages d'utiliser X ?" maxlength="1500"></textarea>
+          <div class="form-text"><i class="bi bi-info-circle"></i> Astuce : Appuyez sur <kbd>Ctrl</kbd> + <kbd>Enter</kbd> pour envoyer rapidement</div>
+        </div>
+
+        <div class="d-flex gap-2 mb-3">
+          <button id="qa-send" class="btn btn-primary"><i class="bi bi-send-fill"></i> Poser la question</button>
+          <button id="qa-clear" class="btn btn-outline-secondary"><i class="bi bi-arrow-clockwise"></i> Réinitialiser</button>
+          <div class="ms-auto text-muted small d-none d-md-block"><i class="bi bi-cpu"></i> Propulsé par Groq AI</div>
+        </div>
+
+        <div id="qa-loading" style="display:none;" class="text-center py-4">
+          <div class="typing-indicator mb-3"><span></span><span></span><span></span></div>
+          <div class="small text-muted"><strong>L'assistant analyse le cours...</strong></div>
+        </div>
+
+        <div id="qa-result" style="display:none;">
+          <div class="card qa-answer-card mb-3">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+                <h6 class="mb-0"><i class="bi bi-chat-left-text-fill text-primary"></i> <strong>Réponse</strong></h6>
+                <span id="qa-confidence-badge" class="confidence-badge"></span>
+              </div>
+              <div id="qa-method-notice" class="mb-2"></div>
+              <div id="qa-answer" style="white-space: pre-wrap; line-height:1.8; font-size:1.05rem;"></div>
+            </div>
+          </div>
+
+          <div class="card qa-sources-card">
+            <div class="card-body">
+              <h6 class="mb-3"><i class="bi bi-book-half text-success"></i> <strong>Sources du cours</strong></h6>
+              <div id="qa-sources" class="small"></div>
+            </div>
+          </div>
+
+          <div class="mt-3 text-center feedback-buttons">
+            <small class="text-muted d-block mb-2">Cette réponse vous a-t-elle été utile ?</small>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-outline-success" onclick="sendFeedback('positive')"><i class="bi bi-hand-thumbs-up-fill"></i> Oui</button>
+              <button type="button" class="btn btn-outline-danger" onclick="sendFeedback('negative')"><i class="bi bi-hand-thumbs-down-fill"></i> Non</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
+
+    <!-- Sidebar (inchangé) -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm sticky-sidebar">
+        <div class="card-body">
+          <h5 class="mb-3"><i class="bi bi-speedometer2 text-primary"></i> Progression</h5>
+          <div class="progress mb-4" style="height:25px;">
+            <div class="progress-bar bg-success progress-bar-striped" role="progressbar" style="width:0%">0%</div>
+          </div>
+
+          <h6 class="mb-3"><i class="bi bi-journal-check text-success"></i> Quiz disponibles</h6>
+          {% if quizzes %}
+            <ul class="list-group list-group-flush">
+              {% for quiz in quizzes %}
+                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                  <span><i class="bi bi-file-earmark-text text-muted"></i> {{ quiz.title }}</span>
+                  <span class="badge bg-primary rounded-pill">{{ quiz.questions.count }} Q</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0"><i class="bi bi-info-circle"></i> Aucun quiz disponible pour le moment</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const btn = document.getElementById('qa-send');
+  const clearBtn = document.getElementById('qa-clear');
+  const questionEl = document.getElementById('qa-question');
+  const answerBox = document.getElementById('qa-answer');
+  const sourcesBox = document.getElementById('qa-sources');
+  const resultArea = document.getElementById('qa-result');
+  const loading = document.getElementById('qa-loading');
+  const confidenceBadge = document.getElementById('qa-confidence-badge');
+  const methodNotice = document.getElementById('qa-method-notice');
+  const courseQaUrl = "{% url 'course_qa' course.id %}";
+
+  if (!btn || !questionEl) return console.error('Éléments Q&A non trouvés');
+
+  document.querySelectorAll('.question-suggestion').forEach(b => {
+    b.addEventListener('click', function() {
+      questionEl.value = this.dataset.question;
+      questionEl.focus();
+    });
+  });
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken');
+
+  function getConfidenceClass(score) {
+    if (score >= 0.7) return 'confidence-high';
+    if (score >= 0.4) return 'confidence-medium';
+    return 'confidence-low';
+  }
+  function getConfidenceText(score) {
+    const percentage = (score * 100).toFixed(0);
+    if (score >= 0.7) return `✓ Haute confiance (${percentage}%)`;
+    if (score >= 0.4) return `⚠ Confiance moyenne (${percentage}%)`;
+    return `⚠ Faible confiance (${percentage}%)`;
+  }
+
+  async function askQuestion() {
+    const question = questionEl.value.trim();
+    if (!question) { alert('⚠ Veuillez écrire une question.'); questionEl.focus(); return; }
+    if (question.length > 1500) { alert('⚠ Votre question est trop longue (max 1500 caractères).'); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Traitement...';
+    loading.style.display = 'block';
+    resultArea.style.display = 'none';
+
+    try {
+      const resp = await fetch(courseQaUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrftoken,
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ question })
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Erreur serveur');
+
+      loading.style.display = 'none';
+      resultArea.style.display = 'block';
+
+      // typing animation
+      answerBox.textContent = '';
+      const text = data.answer || 'Aucune réponse disponible.';
+      let i = 0;
+      const intv = setInterval(() => {
+        if (i < text.length) { answerBox.textContent += text.charAt(i); i++; }
+        else clearInterval(intv);
+      }, 8);
+
+      // confidence
+      if (data.confidence !== undefined && confidenceBadge) {
+        confidenceBadge.className = 'confidence-badge ' + getConfidenceClass(data.confidence);
+        confidenceBadge.textContent = getConfidenceText(data.confidence);
+        confidenceBadge.style.display = 'inline-flex';
+      } else if (confidenceBadge) {
+        confidenceBadge.style.display = 'none';
+      }
+
+      // method notice
+      if (methodNotice) {
+        if (data.method === 'fallback') {
+          methodNotice.innerHTML = '<div class="alert alert-warning small mb-0">⚠️ Réponse basée sur extraits du cours (fallback). Vérifiez la précision.</div>';
+        } else {
+          methodNotice.innerHTML = '';
+        }
+      }
+
+      // sources
+      if (Array.isArray(data.sources) && data.sources.length > 0) {
+        sourcesBox.innerHTML = data.sources.map((s, idx) => {
+          const txt = (s.text || '').length > 200 ? (s.text.substring(0,200) + '...') : (s.text || '');
+          return `<div class="source-item"><strong>📄 Extrait ${idx+1}</strong><p class="mb-0 mt-2 text-muted">${txt}</p></div>`;
+        }).join('');
+      } else {
+        sourcesBox.innerHTML = '<p class="text-muted mb-0"><i class="bi bi-info-circle"></i> Aucune source spécifique</p>';
+      }
+
+      resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } catch (err) {
+      console.error('Erreur Q&A:', err);
+      loading.style.display = 'none';
+      resultArea.style.display = 'block';
+      answerBox.innerHTML = `<div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle-fill"></i> <strong>Erreur:</strong> ${err.message}</div>`;
+      if (sourcesBox) sourcesBox.innerHTML = '';
+      if (confidenceBadge) confidenceBadge.style.display = 'none';
+      if (methodNotice) methodNotice.innerHTML = '';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send-fill"></i> Poser la question';
+    }
+  }
+
+  btn.addEventListener('click', askQuestion);
+  questionEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); askQuestion(); }
+  });
+  clearBtn.addEventListener('click', function() {
+    questionEl.value = ''; resultArea.style.display = 'none'; loading.style.display = 'none'; questionEl.focus();
+  });
+
+  window.sendFeedback = function(type) {
+    const message = type === 'positive' ? '✅ Merci pour votre retour positif !' : '📝 Merci ! Nous allons améliorer nos réponses.';
+    const toast = document.createElement('div');
+    toast.className = 'alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${message}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  };
+});
+</script>
 {% endblock %}

@@ -109,6 +109,13 @@
                                 <a href="{% url 'quiz_list' course.id %}" class="btn btn-sm btn-info" title="Quiz">
                                     <i class="bi bi-clipboard-check"></i>
                                 </a>
+                                <form action="{% url 'course_delete' course.id %}" method="post" style="display:inline-block;"
+                                onsubmit="return confirm('Voulez-vous vraiment supprimer le cours &quot;{{ course.title }}&quot; ? Cette action est irréversible.');">
+                              {% csrf_token %}
+                              <button type="submit" class="btn btn-sm btn-danger" title="Supprimer">
+                                  <i class="bi bi-trash"></i>
+                              </button>
+                          </form>
                             </td>
                         </tr>
                         {% endfor %}

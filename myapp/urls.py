@@ -22,6 +22,8 @@ urlpatterns =[
     path('courses/create/', views.course_create, name='course_create'),
     path('courses/<int:course_id>/edit/', views.course_edit, name='course_edit'),
     path('courses/<int:course_id>/enroll/', views.course_enroll, name='course_enroll'),
+    path('course/<int:course_id>/delete/', views.course_delete, name='course_delete'), 
+
     
     # Quiz
     path('courses/<int:course_id>/quizzes/', views.quiz_list, name='quiz_list'),
@@ -80,4 +82,21 @@ path('events/create-test-finished/', views.create_test_finished_event, name='cre
 path('events/<int:event_id>/participate/', views.participate_event, name='participate_event'),
 path('dashboard/events/<int:event_id>/participants/', views.event_participants, name='event_participants'),
 path('dashboard/events/<int:event_id>/participants/<int:user_id>/update/', views.update_participation_status, name='update_participation_status'),
+
+# ============================================================================
+# PATTERNS D'URL POUR LE SYSTÈME Q&A
+# ============================================================================
+
+
+    # Page de détail du cours avec interface Q&A
+    path('course/<int:course_id>/', 
+         views.course_detail, 
+         name='course_detail'),
+    
+    # API REST pour poser une question (POST)
+    path('course/<int:course_id>/qa/', 
+         views.course_qa, 
+         name='course_qa'),
+    
+
 ]
