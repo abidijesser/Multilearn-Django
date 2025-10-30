@@ -43,9 +43,62 @@
     }
     
     .action-btn {
-        padding: 5px 10px;
-        font-size: 0.875rem;
-        border-radius: 5px;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        border: none;
+        margin: 0 3px;
+    }
+    
+    .action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .btn-view {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+    
+    .btn-view:hover {
+        background: #bbdefb;
+        color: #0d47a1;
+    }
+    
+    .btn-start {
+        background: #e1f5fe;
+        color: #0288d1;
+    }
+    
+    .btn-start:hover {
+        background: #b3e5fc;
+        color: #01579b;
+    }
+    
+    .btn-resolve {
+        background: #e8f5e9;
+        color: #388e3c;
+    }
+    
+    .btn-resolve:hover {
+        background: #c8e6c9;
+        color: #1b5e20;
+    }
+    
+    .btn-reject {
+        background: #ffebee;
+        color: #d32f2f;
+    }
+    
+    .btn-reject:hover {
+        background: #ffcdd2;
+        color: #b71c1c;
     }
     
     .filter-card {
@@ -207,27 +260,27 @@
                                 <small>{{ reclamation.created_at|date:"d/m/Y H:i" }}</small>
                             </td>
                             <td>
-                                <div class="btn-group btn-group-sm">
+                                <div class="d-flex align-items-center gap-1">
                                     <a href="{% url 'reclamation_detail' reclamation.id %}" 
-                                       class="btn btn-outline-primary action-btn" title="Voir détails">
-                                        <i class="bi bi-eye"></i>
+                                       class="action-btn btn-view" title="Voir détails">
+                                        <i class="bi bi-eye-fill"></i>
                                     </a>
                                     
                                     {% if reclamation.statut == 'EN_ATTENTE' %}
                                     <a href="{% url 'reclamation_traiter' reclamation.id %}" 
-                                       class="btn btn-outline-info action-btn" title="Prendre en charge">
-                                        <i class="bi bi-play-circle"></i>
+                                       class="action-btn btn-start" title="Prendre en charge">
+                                        <i class="bi bi-play-circle-fill"></i>
                                     </a>
                                     {% endif %}
                                     
                                     {% if reclamation.statut == 'EN_COURS' or reclamation.statut == 'EN_ATTENTE' %}
                                     <a href="{% url 'reclamation_resoudre' reclamation.id %}" 
-                                       class="btn btn-outline-success action-btn" title="Résoudre">
-                                        <i class="bi bi-check-circle"></i>
+                                       class="action-btn btn-resolve" title="Résoudre">
+                                        <i class="bi bi-check-circle-fill"></i>
                                     </a>
                                     <a href="{% url 'reclamation_rejeter' reclamation.id %}" 
-                                       class="btn btn-outline-danger action-btn" title="Rejeter">
-                                        <i class="bi bi-x-circle"></i>
+                                       class="action-btn btn-reject" title="Rejeter">
+                                        <i class="bi bi-x-circle-fill"></i>
                                     </a>
                                     {% endif %}
                                 </div>
