@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard Étudiant{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-4">
+        <i class="bi bi-speedometer2"></i> Bonjour, {{ user.get_full_name }} !
+    </h1>
+
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Cours suivis</h6>
+                            <h2 class="mb-0 mt-2">{{ total_courses }}</h2>
+                        </div>
+                        <i class="bi bi-book" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Progression moyenne</h6>
+                            <h2 class="mb-0 mt-2">{{ avg_progress|floatformat:0 }}%</h2>
+                        </div>
+                        <i class="bi bi-graph-up-arrow" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Quiz terminés</h6>
+                            <h2 class="mb-0 mt-2">{{ completed_quizzes }}</h2>
+                        </div>
+                        <i class="bi bi-clipboard-check" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mes cours -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5><i class="bi bi-book"></i> Mes cours en cours</h5>
+        </div>
+        <div class="card-body">
+            {% if enrollments %}
+            {% for enrollment in enrollments %}
+            <div class="row align-items-center mb-3 p-3 border rounded">
+                <div class="col-md-8">
+                    <h5>{{ enrollment.course.title }}</h5>
+                    <p class="text-muted mb-2">{{ enrollment.course.description|truncatewords:20 }}</p>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ enrollment.progress }}%">
+                            {{ enrollment.progress }}%
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        Inscrit le {{ enrollment.enrolled_at|date:"d/m/Y" }}
+                    </small>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="{% url 'course_detail' enrollment.course.id %}" class="btn btn-primary mb-2">
+                        <i class="bi bi-play-circle"></i> Continuer
+                    </a>
+                    <br>
+                    <a href="{% url 'quiz_list' enrollment.course.id %}" class="btn btn-outline-info">
+                        <i class="bi bi-clipboard-check"></i> Quiz
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox" style="font-size: 4rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">Vous n'êtes inscrit à aucun cours pour le moment.</p>
+                <a href="{% url 'course_list' %}" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Explorer les cours
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Cours disponibles -->
+    <div class="card">
+        <div class="card-header bg-success text-white">
+            <h5><i class="bi bi-star"></i> Cours recommandés</h5>
+        </div>
+        <div class="card-body">
+            {% if available_courses %}
+            <div class="row g-3">
+                {% for course in available_courses %}
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        {% if course.cover_image %}
+                        <img src="{{ course.cover_image.url }}" class="card-img-top" alt="{{ course.title }}"
+                            style="height: 150px; object-fit: cover;">
+                        {% else %}
+                        <div class="card-img-top bg-gradient d-flex align-items-center justify-content-center"
+                            style="height: 150px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="bi bi-book-fill text-white" style="font-size: 3rem;"></i>
+                        </div>
+                        {% endif %}
+                        <div class="card-body">
+                            <span class="badge bg-info mb-2">{{ course.level }}</span>
+                            <h6 class="card-title">{{ course.title }}</h6>
+                            <p class="card-text small text-muted">{{ course.description|truncatewords:10 }}</p>
+                        </div>
+                        <div class="card-footer bg-white">
+                            <a href="{% url 'course_detail' course.id %}" class="btn btn-sm btn-outline-primary w-100">
+                                Découvrir
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="text-center mt-3">
+                <a href="{% url 'course_list' %}" class="btn btn-outline-success">
+                    Voir tous les cours <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            {% else %}
+            <p class="text-center text-muted">Aucun nouveau cours disponible.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

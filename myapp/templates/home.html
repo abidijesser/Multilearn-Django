@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}Accueil{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-3 fw-bold">Apprenez à votre rythme</h1>
+                <p class="lead">Rejoignez des milliers d'étudiants et découvrez des cours en ligne de qualité</p>
+                <div class="mt-4">
+                    <a href="{% url 'register' %}" class="btn btn-light btn-lg me-3">
+                        <i class="bi bi-person-plus"></i> Commencer gratuitement
+                    </a>
+                    <a href="{% url 'course_list' %}" class="btn btn-outline-light btn-lg">
+                        <i class="bi bi-book"></i> Explorer les cours
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-6 text-center">
+                <i class="bi bi-mortarboard-fill" style="font-size: 15rem; opacity: 0.2;"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Section -->
+<div class="container my-5">
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="stat-card">
+                <i class="bi bi-book"></i>
+                <h3>{{ stats.total_courses }}</h3>
+                <p class="text-muted">Cours disponibles</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <i class="bi bi-people"></i>
+                <h3>{{ stats.total_students }}</h3>
+                <p class="text-muted">Étudiants inscrits</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <i class="bi bi-person-badge"></i>
+                <h3>{{ stats.total_teachers }}</h3>
+                <p class="text-muted">Enseignants experts</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Featured Courses -->
+<div class="container my-5">
+    <h2 class="text-center mb-5">
+        <i class="bi bi-star-fill text-warning"></i> Cours populaires
+    </h2>
+    <div class="row g-4">
+        {% for course in courses %}
+        <div class="col-md-4">
+            <div class="card h-100">
+                {% if course.cover_image %}
+                <img src="{{ course.cover_image.url }}" class="card-img-top" alt="{{ course.title }}"
+                    style="height: 200px; object-fit: cover;">
+                {% else %}
+                <div class="card-img-top bg-primary d-flex align-items-center justify-content-center"
+                    style="height: 200px;">
+                    <i class="bi bi-book-fill text-white" style="font-size: 4rem;"></i>
+                </div>
+                {% endif %}
+                <div class="card-body">
+                    <span class="badge bg-info mb-2">{{ course.level }}</span>
+                    <h5 class="card-title">{{ course.title }}</h5>
+                    <p class="card-text text-muted">{{ course.description|truncatewords:20 }}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="bi bi-person"></i> {{ course.teacher.get_full_name }}
+                        </small>
+                        <small class="text-muted">
+                            <i class="bi bi-clock"></i> {{ course.duration_hours }}h
+                        </small>
+                    </div>
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <a href="{% url 'course_detail' course.id %}" class="btn btn-primary w-100">
+                        Voir le cours <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Aucun cours disponible pour le moment.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="text-center mt-4">
+        <a href="{% url 'course_list' %}" class="btn btn-outline-primary btn-lg">
+            Voir tous les cours <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+</div>
+
+<!-- CTA Section -->
+<div class="bg-light py-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h2>Prêt à commencer votre apprentissage ?</h2>
+                <p class="lead">Inscrivez-vous gratuitement et accédez à des centaines de cours en ligne.</p>
+            </div>
+            <div class="col-lg-4 text-end">
+                <a href="{% url 'register' %}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-rocket-takeoff"></i> Rejoignez-nous
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+
+{% block title %}Mon Profil{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    {% if user.profile_picture %}
+                    <img src="{{ user.profile_picture.url }}" class="rounded-circle mb-3"
+                        style="width: 150px; height: 150px; object-fit: cover;">
+                    {% else %}
+                    <i class="bi bi-person-circle" style="font-size: 150px; color: var(--primary-color);"></i>
+                    {% endif %}
+                    <h4>{{ user.get_full_name }}</h4>
+                    <p class="text-muted">@{{ user.username }}</p>
+                    {% if user.role == 'ADMIN' %}
+                    <span class="badge bg-danger">Administrateur</span>
+                    {% elif user.role == 'TEACHER' %}
+                    <span class="badge bg-primary">Enseignant</span>
+                    {% else %}
+                    <span class="badge bg-success">Étudiant</span>
+                    {% endif %}
+                    <hr>
+                    <div class="text-start">
+                        <p><i class="bi bi-envelope"></i> {{ user.email }}</p>
+                        <p><i class="bi bi-calendar"></i> Inscrit le {{ user.date_joined|date:"d/m/Y" }}</p>
+                    </div>
+                </div>
+            </div>
+
+            {% if user.role == 'STUDENT' %}
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5><i class="bi bi-bar-chart"></i> Statistiques</h5>
+                    <hr>
+                    <p><strong>Cours suivis:</strong> {{ enrollments.count }}</p>
+                    <p><strong>Quiz terminés:</strong> {{ completed_quizzes }}</p>
+                </div>
+            </div>
+            {% elif user.role == 'TEACHER' %}
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5><i class="bi bi-bar-chart"></i> Statistiques</h5>
+                    <hr>
+                    <p><strong>Cours créés:</strong> {{ courses.count }}</p>
+                    <p><strong>Étudiants:</strong> {{ total_students }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-pencil-square"></i> Modifier mon profil</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">Prénom</label>
+                                <input type="text" class="form-control" id="first_name" name="first_name"
+                                    value="{{ user.first_name }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">Nom</label>
+                                <input type="text" class="form-control" id="last_name" name="last_name"
+                                    value="{{ user.last_name }}">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="bio" class="form-label">Biographie</label>
+                            <textarea class="form-control" id="bio" name="bio" rows="4">{{ user.bio }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="profile_picture" class="form-label">Photo de profil</label>
+                            <input type="file" class="form-control" id="profile_picture" name="profile_picture"
+                                accept="image/*">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Enregistrer les modifications
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            {% if user.role == 'STUDENT' and enrollments %}
+            <div class="card mt-3">
+                <div class="card-header bg-success text-white">
+                    <h5><i class="bi bi-book"></i> Mes cours</h5>
+                </div>
+                <div class="card-body">
+                    {% for enrollment in enrollments %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6>{{ enrollment.course.title }}</h6>
+                            <span class="badge bg-info">{{ enrollment.progress }}%</span>
+                        </div>
+                        <div class="progress mt-2">
+                            <div class="progress-bar" role="progressbar" style="width: {{ enrollment.progress }}%"
+                                aria-valuenow="{{ enrollment.progress }}" aria-valuemin="0" aria-valuemax="100">
+                                {{ enrollment.progress }}%
+                            </div>
+                        </div>
+                        <a href="{% url 'course_detail' enrollment.course.id %}"
+                            class="btn btn-sm btn-outline-primary mt-2">
+                            Continuer <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                    <hr>
+                    {% endfor %}
+                </div>
+            </div>
+            {% elif user.role == 'TEACHER' and courses %}
+            <div class="card mt-3">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-book"></i> Mes cours</h5>
+                </div>
+                <div class="card-body">
+                    {% for course in courses %}
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6>{{ course.title }}</h6>
+                            <small class="text-muted">
+                                <i class="bi bi-people"></i> {{ course.student_count }} étudiant{{
+                                course.student_count|pluralize }}
+                            </small>
+                        </div>
+                        <a href="{% url 'course_detail' course.id %}" class="btn btn-sm btn-primary">
+                            Gérer <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                    <hr>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

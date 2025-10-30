@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Inscription{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-person-plus-fill" style="font-size: 4rem; color: var(--primary-color);"></i>
+                        <h2 class="mt-3">Inscription</h2>
+                        <p class="text-muted">Créez votre compte MultiLearn</p>
+                    </div>
+
+                    <form method="post" action="{% url 'register' %}">
+                        {% csrf_token %}
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">
+                                    <i class="bi bi-person"></i> Prénom *
+                                </label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">
+                                    Nom *
+                                </label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="username" class="form-label">
+                                <i class="bi bi-at"></i> Nom d'utilisateur *
+                            </label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                            <div class="form-text">Votre identifiant unique</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">
+                                <i class="bi bi-envelope"></i> Email *
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="role" class="form-label">
+                                <i class="bi bi-person-badge"></i> Je suis *
+                            </label>
+                            <select class="form-select" id="role" name="role" required>
+                                <option value="STUDENT" selected>Étudiant</option>
+                                <option value="TEACHER">Enseignant</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">
+                                <i class="bi bi-lock"></i> Mot de passe *
+                            </label>
+                            <input type="password" class="form-control" id="password" name="password" required
+                                minlength="8">
+                            <div class="form-text">Minimum 8 caractères</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password_confirm" class="form-label">
+                                <i class="bi bi-lock-fill"></i> Confirmer le mot de passe *
+                            </label>
+                            <input type="password" class="form-control" id="password_confirm" name="password_confirm"
+                                required>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="terms" required>
+                            <label class="form-check-label" for="terms">
+                                J'accepte les <a href="#">conditions d'utilisation</a>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-3">
+                            <i class="bi bi-person-plus"></i> S'inscrire
+                        </button>
+                    </form>
+
+                    <hr>
+
+                    <div class="text-center">
+                        <p class="mb-0">Vous avez déjà un compte ?
+                            <a href="{% url 'login' %}">Se connecter</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    // Vérifier que les mots de passe correspondent
+    document.querySelector('form').addEventListener('submit', function (e) {
+        const password = document.getElementById('password').value;
+        const confirm = document.getElementById('password_confirm').value;
+
+        if (password !== confirm) {
+            e.preventDefault();
+            alert('Les mots de passe ne correspondent pas !');
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}
