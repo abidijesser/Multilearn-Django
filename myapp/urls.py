@@ -49,6 +49,17 @@ path('courses/<int:course_id>/quiz/generate_ai/', generate_quiz_view, name='gene
     
     # API pour détection de contenu
     path('api/check-content/', views.check_content_api, name='check_content_api'),
+    
+    # ==================== Réclamations ====================
+    path('reclamations/', views.reclamation_list, name='reclamation_list'),
+    path('reclamations/create/', views.reclamation_create, name='reclamation_create'),
+    path('reclamations/<int:reclamation_id>/', views.reclamation_detail, name='reclamation_detail'),
+    path('reclamations/admin/', views.reclamation_admin, name='reclamation_admin'),
+    path('reclamations/<int:reclamation_id>/traiter/', views.reclamation_traiter, name='reclamation_traiter'),
+    path('reclamations/<int:reclamation_id>/resoudre/', views.reclamation_resoudre, name='reclamation_resoudre'),
+    path('reclamations/<int:reclamation_id>/rejeter/', views.reclamation_rejeter, name='reclamation_rejeter'),
+    path('reclamations/<int:reclamation_id>/priorite/', views.reclamation_update_priorite, name='reclamation_update_priorite'),
+    
     # ==================== Événements ====================
 
 path('events/', views.event_list, name='event_list'),

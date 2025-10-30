@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block title %}Mes Réclamations - MultiLearn{% endblock %}
+
+{% block content %}
+<style>
+    .reclamation-header {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        padding: 60px 0;
+        color: white;
+        margin-bottom: 50px;
+    }
+    
+    .stat-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .reclamation-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        margin-bottom: 20px;
+    }
+    
+    .reclamation-card:hover {
+        box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+    }
+    
+    .badge-status {
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+    
+    .status-EN_ATTENTE {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-EN_COURS {
+        background: #cfe2ff;
+        color: #084298;
+    }
+    
+    .status-RESOLUE {
+        background: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .status-REJETEE {
+        background: #f8d7da;
+        color: #842029;
+    }
+</style>
+
+<div class="reclamation-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8 mx-auto text-center">
+                <div class="mb-3">
+                    <i class="bi bi-clipboard-check-fill" style="font-size: 4rem;"></i>
+                </div>
+                <h1 class="display-4 fw-bold mb-3">Mes Réclamations</h1>
+                <p class="lead mb-4">
+                    Suivez l'état de vos réclamations
+                </p>
+                <a href="{% url 'reclamation_create' %}" class="btn btn-light btn-lg px-5 py-3 shadow">
+                    <i class="bi bi-plus-circle me-2"></i> Nouvelle Réclamation
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mb-5">
+    <!-- Statistiques -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-clipboard-data text-primary fs-1"></i>
+                    <h2 class="fw-bold mb-1 mt-2">{{ stats.total }}</h2>
+                    <p class="text-muted mb-0">Total</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-clock text-warning fs-1"></i>
+                    <h2 class="fw-bold mb-1 mt-2">{{ stats.en_attente }}</h2>
+                    <p class="text-muted mb-0">En attente</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-gear text-info fs-1"></i>
+                    <h2 class="fw-bold mb-1 mt-2">{{ stats.en_cours }}</h2>
+                    <p class="text-muted mb-0">En cours</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-check-circle text-success fs-1"></i>
+                    <h2 class="fw-bold mb-1 mt-2">{{ stats.resolues }}</h2>
+                    <p class="text-muted mb-0">Résolues</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des réclamations -->
+    <div class="row">
+        <div class="col-12">
+            {% if reclamations %}
+                {% for reclamation in reclamations %}
+                <div class="reclamation-card card">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="flex-grow-1">
+                                <h5 class="fw-bold mb-2">
+                                    <i class="bi bi-file-earmark-text me-2 text-danger"></i>
+                                    {{ reclamation.sujet }}
+                                </h5>
+                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                    <span class="badge badge-status status-{{ reclamation.statut }}">
+                                        {{ reclamation.get_statut_display }}
+                                    </span>
+                                    <span class="badge bg-secondary">
+                                        {{ reclamation.get_type_reclamation_display }}
+                                    </span>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar3 me-1"></i>
+                                        {{ reclamation.created_at|date:"d F Y à H:i" }}
+                                    </small>
+                                </div>
+                            </div>
+                            <a href="{% url 'reclamation_detail' reclamation.id %}" class="btn btn-outline-primary btn-sm rounded-pill">
+                                <i class="bi bi-eye me-1"></i> Voir détails
+                            </a>
+                        </div>
+                        
+                        <p class="text-muted mb-0">
+                            {{ reclamation.description|truncatewords:30 }}
+                        </p>
+                        
+                        <!-- {% if reclamation.traite_par %}
+                        <div class="mt-3 pt-3 border-top">
+                            <small class="text-success">
+                                <i class="bi bi-person-check me-1"></i>
+                                Traité par: <strong>{{ reclamation.traite_par.get_full_name|default:reclamation.traite_par.username }}</strong>
+                            </small>
+                        </div>
+                        {% endif %} -->
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox text-muted" style="font-size: 5rem;"></i>
+                    <h3 class="text-muted mt-3">Aucune réclamation</h3>
+                    <p class="text-muted mb-4">Vous n'avez pas encore soumis de réclamation</p>
+                    <a href="{% url 'reclamation_create' %}" class="btn btn-danger btn-lg px-5 rounded-pill">
+                        <i class="bi bi-plus-circle me-2"></i> Créer une réclamation
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

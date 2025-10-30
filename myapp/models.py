@@ -401,3 +401,97 @@ class EventFeedback(models.Model):
 
 # Keep Feedback as an alias for backwards compatibility
 Feedback = EventFeedback
+
+
+# ==================== RÉCLAMATIONS ====================
+class Reclamation(models.Model):
+    """Modèle pour les réclamations des étudiants"""
+    
+    TYPE_CHOICES = [
+        ('COURS', 'Cours'),
+        ('QUIZ', 'Quiz'),
+        ('ENSEIGNANT', 'Enseignant'),
+        ('BUG_TECHNIQUE', 'Bug Technique'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('EN_ATTENTE', 'En attente'),
+        ('EN_COURS', 'En cours'),
+        ('RESOLUE', 'Résolue'),
+        ('REJETEE', 'Rejetée'),
+    ]
+    
+    # Informations de base
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reclamations')
+    sujet = models.CharField(max_length=255, verbose_name='Sujet')
+    type_reclamation = models.CharField(max_length=20, choices=TYPE_CHOICES, verbose_name='Type de réclamation')
+    description = models.TextField(verbose_name='Description détaillée')
+    
+    # Statut et suivi
+    statut = models.CharField(max_length=15, choices=STATUS_CHOICES, default='EN_ATTENTE', verbose_name='Statut')
+    
+    # Réponse de l'administration
+    reponse_admin = models.TextField(blank=True, null=True, verbose_name='Réponse de l\'administration')
+    traite_par = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, 
+                                     related_name='reclamations_traitees', verbose_name='Traité par')
+    
+    # Dates
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Date de création')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Dernière mise à jour')
+    date_resolution = models.DateTimeField(null=True, blank=True, verbose_name='Date de résolution')
+    
+    # Priorité (optionnel, peut être ajouté par l'admin)
+    priorite = models.CharField(max_length=10, choices=[
+        ('BASSE', 'Basse'),
+        ('MOYENNE', 'Moyenne'),
+        ('HAUTE', 'Haute'),
+    ], default='MOYENNE', verbose_name='Priorité')
+    
+    class Meta:
+        db_table = 'reclamations'
+        verbose_name = 'Réclamation'
+        verbose_name_plural = 'Réclamations'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.sujet} - {self.student.username} ({self.get_statut_display()})"
+    
+    def marquer_en_cours(self, admin_user):
+        """Marquer la réclamation comme en cours de traitement"""
+        self.statut = 'EN_COURS'
+        self.traite_par = admin_user
+        self.save()
+    
+    def resoudre(self, admin_user, reponse):
+        """Résoudre la réclamation"""
+        from django.utils import timezone
+        self.statut = 'RESOLUE'
+        self.traite_par = admin_user
+        self.reponse_admin = reponse
+        self.date_resolution = timezone.now()
+        self.save()
+    
+    def rejeter(self, admin_user, raison):
+        """Rejeter la réclamation"""
+        from django.utils import timezone
+        self.statut = 'REJETEE'
+        self.traite_par = admin_user
+        self.reponse_admin = raison
+        self.date_resolution = timezone.now()
+        self.save()
+    
+    @property
+    def est_en_attente(self):
+        return self.statut == 'EN_ATTENTE'
+    
+    @property
+    def est_resolue(self):
+        return self.statut == 'RESOLUE'
+    
+    @property
+    def delai_traitement(self):
+        """Calcule le délai de traitement en jours"""
+        if self.date_resolution:
+            delta = self.date_resolution - self.created_at
+            return delta.days
+        return None

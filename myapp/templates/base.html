@@ -135,11 +135,23 @@
                             <i class="bi bi-chat-heart"></i> Avis
                         </a>
                     </li>
-                      <a class="nav-link" href="{% url 'event_list' %}">
-                     <i class="bi bi-calendar-event"></i> Événements
-            </a>
-        </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'event_list' %}">
+                            <i class="bi bi-calendar-event"></i> Événements
+                        </a>
+                    </li>
                     {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        {% if user.role == 'ADMIN' %}
+                            <a class="nav-link" href="{% url 'reclamation_admin' %}">
+                                <i class="bi bi-exclamation-circle"></i> Réclamations
+                            </a>
+                        {% else %}
+                            <a class="nav-link" href="{% url 'reclamation_list' %}">
+                                <i class="bi bi-exclamation-circle"></i> Réclamations
+                            </a>
+                        {% endif %}
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'dashboard' %}">
                             <i class="bi bi-speedometer2"></i> Dashboard
@@ -184,6 +196,9 @@
                             {% if user.role == 'ADMIN' %}
                             <li><a class="dropdown-item" href="{% url 'feedback_admin' %}">
                                     <i class="bi bi-chat-heart"></i> Gestion des avis
+                                </a></li>
+                            <li><a class="dropdown-item" href="{% url 'reclamation_admin' %}">
+                                    <i class="bi bi-exclamation-circle"></i> Gestion des réclamations
                                 </a></li>
                             {% endif %}
                             <li>

@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des Réclamations - Admin{% endblock %}
+
+{% block content %}
+<style>
+    .admin-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 60px 0;
+        color: white;
+        margin-bottom: 50px;
+    }
+    
+    .stat-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .reclamation-table {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+    
+    .badge-priorite-HAUTE {
+        background: #dc3545;
+    }
+    
+    .badge-priorite-MOYENNE {
+        background: #ffc107;
+        color: #000;
+    }
+    
+    .badge-priorite-BASSE {
+        background: #6c757d;
+    }
+    
+    .action-btn {
+        padding: 5px 10px;
+        font-size: 0.875rem;
+        border-radius: 5px;
+    }
+    
+    .filter-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        margin-bottom: 30px;
+    }
+</style>
+
+<div class="admin-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8 mx-auto text-center">
+                <div class="mb-3">
+                    <i class="bi bi-shield-check" style="font-size: 4rem;"></i>
+                </div>
+                <h1 class="display-4 fw-bold mb-3">Gestion des Réclamations</h1>
+                <p class="lead mb-0">
+                    Interface d'administration pour traiter les réclamations des étudiants
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mb-5">
+    <!-- Statistiques -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-clipboard-data text-primary fs-1"></i>
+                    <h2 class="fw-bold mb-1 mt-2">{{ stats.total }}</h2>
+                    <p class="text-muted mb-0">Total</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-clock text-warning fs-1"></i>
+                    <h2 class="fw-bold mb-1 mt-2">{{ stats.en_attente }}</h2>
+                    <p class="text-muted mb-0">En attente</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-gear text-info fs-1"></i>
+                    <h2 class="fw-bold mb-1 mt-2">{{ stats.en_cours }}</h2>
+                    <p class="text-muted mb-0">En cours</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-check-circle text-success fs-1"></i>
+                    <h2 class="fw-bold mb-1 mt-2">{{ stats.resolues }}</h2>
+                    <p class="text-muted mb-0">Résolues</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filtres -->
+    <div class="filter-card">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Statut</label>
+                <select name="statut" class="form-select">
+                    <option value="">Tous</option>
+                    <option value="EN_ATTENTE">En attente</option>
+                    <option value="EN_COURS">En cours</option>
+                    <option value="RESOLUE">Résolue</option>
+                    <option value="REJETEE">Rejetée</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Type</label>
+                <select name="type" class="form-select">
+                    <option value="">Tous</option>
+                    <option value="COURS">Cours</option>
+                    <option value="QUIZ">Quiz</option>
+                    <option value="ENSEIGNANT">Enseignant</option>
+                    <option value="BUG_TECHNIQUE">Bug Technique</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Priorité</label>
+                <select name="priorite" class="form-select">
+                    <option value="">Toutes</option>
+                    <option value="HAUTE">Haute</option>
+                    <option value="MOYENNE">Moyenne</option>
+                    <option value="BASSE">Basse</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel me-2"></i> Filtrer
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Tableau des réclamations -->
+    <div class="reclamation-table">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Étudiant</th>
+                        <th>Sujet</th>
+                        <th>Type</th>
+                        <th>Statut</th>
+                        <th>Priorité</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if reclamations %}
+                        {% for reclamation in reclamations %}
+                        <tr>
+                            <td><strong>#{{ reclamation.id }}</strong></td>
+                            <td>
+                                <i class="bi bi-person-circle me-1"></i>
+                                {{ reclamation.student.get_full_name|default:reclamation.student.username }}
+                            </td>
+                            <td>
+                                <strong>{{ reclamation.sujet|truncatewords:8 }}</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">
+                                    {{ reclamation.get_type_reclamation_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if reclamation.statut == 'EN_ATTENTE' %}
+                                    <span class="badge bg-warning text-dark">{{ reclamation.get_statut_display }}</span>
+                                {% elif reclamation.statut == 'EN_COURS' %}
+                                    <span class="badge bg-info">{{ reclamation.get_statut_display }}</span>
+                                {% elif reclamation.statut == 'RESOLUE' %}
+                                    <span class="badge bg-success">{{ reclamation.get_statut_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ reclamation.get_statut_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge badge-priorite-{{ reclamation.priorite }}">
+                                    {{ reclamation.get_priorite_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <small>{{ reclamation.created_at|date:"d/m/Y H:i" }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'reclamation_detail' reclamation.id %}" 
+                                       class="btn btn-outline-primary action-btn" title="Voir détails">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    
+                                    {% if reclamation.statut == 'EN_ATTENTE' %}
+                                    <a href="{% url 'reclamation_traiter' reclamation.id %}" 
+                                       class="btn btn-outline-info action-btn" title="Prendre en charge">
+                                        <i class="bi bi-play-circle"></i>
+                                    </a>
+                                    {% endif %}
+                                    
+                                    {% if reclamation.statut == 'EN_COURS' or reclamation.statut == 'EN_ATTENTE' %}
+                                    <a href="{% url 'reclamation_resoudre' reclamation.id %}" 
+                                       class="btn btn-outline-success action-btn" title="Résoudre">
+                                        <i class="bi bi-check-circle"></i>
+                                    </a>
+                                    <a href="{% url 'reclamation_rejeter' reclamation.id %}" 
+                                       class="btn btn-outline-danger action-btn" title="Rejeter">
+                                        <i class="bi bi-x-circle"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-5">
+                                <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                                <p class="text-muted mt-3 mb-0">Aucune réclamation trouvée</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult, PlatformFeedback, EventFeedback, Event, Participation 
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult, PlatformFeedback, EventFeedback, Event, Participation, Reclamation 
 
 # ==================== GESTION DES UTILISATEURS ====================
 
@@ -154,3 +154,29 @@ class ParticipationAdmin(admin.ModelAdmin):
     list_filter = ['status', 'registered_at']
     search_fields = ['user__username', 'event__title']
     readonly_fields = ['registered_at']
+
+# ==================== GESTION DES RÉCLAMATIONS ====================
+
+@admin.register(Reclamation)
+class ReclamationAdmin(admin.ModelAdmin):
+    list_display = ['sujet', 'student', 'type_reclamation', 'statut', 'priorite', 'created_at', 'traite_par']
+    list_filter = ['statut', 'type_reclamation', 'priorite', 'created_at']
+    search_fields = ['sujet', 'description', 'student__username', 'student__email']
+    readonly_fields = ['created_at', 'updated_at', 'date_resolution']
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('Informations de base', {
+            'fields': ('student', 'sujet', 'type_reclamation', 'description')
+        }),
+        ('Statut et traitement', {
+            'fields': ('statut', 'priorite', 'traite_par', 'reponse_admin')
+        }),
+        ('Dates', {
+            'fields': ('created_at', 'updated_at', 'date_resolution')
+        }),
+    )
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('student', 'traite_par')

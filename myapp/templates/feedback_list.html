@@ -1,130 +1,248 @@
 {% extends 'base.html' %}
 
-{% block title %}Feedbacks - MultiLearn{% endblock %}
+{% block title %}Avis des utilisateurs - MultiLearn{% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <!-- En-tête -->
-            <div class="text-center mb-5">
-                <h1 class="display-4 fw-bold text-primary">
-                    <i class="bi bi-chat-heart"></i> Avis des utilisateurs
-                </h1>
-                <p class="lead text-muted">
+<style>
+    .feedback-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 60px 0;
+        color: white;
+        margin-bottom: 50px;
+    }
+    
+    .stat-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        height: 100%;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .stat-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 15px;
+        font-size: 2rem;
+    }
+    
+    .feedback-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+    
+    .feedback-card:hover {
+        box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+        transform: translateY(-2px);
+    }
+    
+    .feedback-card .card-body {
+        padding: 25px;
+    }
+    
+    .user-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-right: 15px;
+    }
+    
+    .empty-state {
+        padding: 80px 20px;
+        text-align: center;
+    }
+    
+    .empty-state-icon {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 30px;
+    }
+    
+    .cta-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 20px;
+        padding: 40px;
+        color: white;
+        margin-top: 50px;
+    }
+    
+    .badge-custom {
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+</style>
+
+<div class="feedback-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8 mx-auto text-center">
+                <div class="mb-3">
+                    <i class="bi bi-chat-heart-fill" style="font-size: 4rem;"></i>
+                </div>
+                <h1 class="display-4 fw-bold mb-3">Avis des utilisateurs</h1>
+                <p class="lead mb-4">
                     Découvrez ce que pensent nos utilisateurs de la plateforme MultiLearn
                 </p>
-                <a href="{% url 'feedback_create' %}" class="btn btn-primary btn-lg">
-                    <i class="bi bi-plus-circle"></i> Laisser un avis
+                <a href="{% url 'feedback_create' %}" class="btn btn-light btn-lg px-5 py-3 shadow">
+                    <i class="bi bi-plus-circle me-2"></i> Laisser un avis
                 </a>
             </div>
+        </div>
+    </div>
+</div>
 
-            <!-- Statistiques -->
-            <div class="row mb-4">
-                <div class="col-md-4">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <i class="bi bi-chat-dots text-primary fs-1"></i>
-                            <h3 class="mt-2">{{ feedbacks.count }}</h3>
-                            <p class="text-muted">Avis publiés</p>
-                        </div>
+<div class="container mb-5">
+    <!-- Statistiques -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-6">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <div class="stat-icon bg-primary bg-opacity-10">
+                        <i class="bi bi-chat-dots text-primary"></i>
                     </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <i class="bi bi-people text-success fs-1"></i>
-                            <h3 class="mt-2">{{ feedbacks.count }}</h3>
-                            <p class="text-muted">Utilisateurs satisfaits</p>
-                        </div>
-                    </div>
+                    <h2 class="fw-bold mb-1">{{ feedbacks.count }}</h2>
+                    <p class="text-muted mb-0">Avis publiés</p>
                 </div>
             </div>
+        </div>
+        <div class="col-md-6">
+            <div class="stat-card card">
+                <div class="card-body text-center p-4">
+                    <div class="stat-icon bg-success bg-opacity-10">
+                        <i class="bi bi-people text-success"></i>
+                    </div>
+                    <h2 class="fw-bold mb-1">{{ feedbacks.count }}</h2>
+                    <p class="text-muted mb-0">Utilisateurs existants</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            <!-- Liste des feedbacks -->
+    <!-- Liste des feedbacks -->
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
             {% if feedbacks %}
-            <div class="row">
                 {% for feedback in feedbacks %}
-                <div class="col-12 mb-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                <div>
-                                    <h5 class="card-title mb-1">
-                                        <i class="bi bi-person-circle text-primary"></i>
-                                        {{ feedback.display_name }}
-                                    </h5>
-                                    <small class="text-muted">
-                                        <i class="bi bi-calendar"></i>
-                                        {{ feedback.created_at|date:"d F Y à H:i" }}
-                                        {% if feedback.user %}
-                                        <span class="badge bg-success ms-2">
-                                            <i class="bi bi-person-check"></i> Membre
-                                        </span>
-                                        {% endif %}
-                                    </small>
-                                </div>
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="badge bg-success">
-                                        <i class="bi bi-check-circle"></i> Approuvé
-                                    </span>
+                <div class="feedback-card card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start">
+                            <!-- Avatar -->
+                            <div class="user-avatar flex-shrink-0">
+                                {{ feedback.display_name|first|upper }}
+                            </div>
+                            
+                            <!-- Contenu -->
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h5 class="mb-1 fw-bold">{{ feedback.display_name }}</h5>
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <small class="text-muted">
+                                                <i class="bi bi-calendar3 me-1"></i>
+                                                {{ feedback.created_at|date:"d F Y" }}
+                                            </small>
+                                            {% if feedback.user %}
+                                            <span class="badge badge-custom bg-success bg-opacity-10 text-success">
+                                                <i class="bi bi-patch-check-fill me-1"></i> Membre vérifié
+                                            </span>
+                                            {% endif %}
+                                            <span class="badge badge-custom bg-primary bg-opacity-10 text-primary">
+                                                <i class="bi bi-check-circle-fill me-1"></i> Approuvé
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
                                     {% if user.is_authenticated and feedback.user == user %}
-                                    <!-- Menu déroulant pour le propriétaire -->
                                     <div class="dropdown">
-                                        <button class="btn btn-outline-secondary btn-sm" type="button" 
+                                        <button class="btn btn-light btn-sm rounded-pill" type="button" 
                                                 data-bs-toggle="dropdown" aria-expanded="false">
-                                            <i class="bi bi-three-dots-vertical"></i>
+                                            <i class="bi bi-three-dots"></i>
                                         </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
+                                        <ul class="dropdown-menu dropdown-menu-end shadow">
                                             <li>
                                                 <a class="dropdown-item" href="{% url 'feedback_edit' feedback.id %}">
-                                                    <i class="bi bi-pencil"></i> Modifier
+                                                    <i class="bi bi-pencil text-primary me-2"></i> Modifier
                                                 </a>
                                             </li>
+                                            <li><hr class="dropdown-divider"></li>
                                             <li>
                                                 <a class="dropdown-item text-danger" href="{% url 'feedback_delete' feedback.id %}">
-                                                    <i class="bi bi-trash"></i> Supprimer
+                                                    <i class="bi bi-trash me-2"></i> Supprimer
                                                 </a>
                                             </li>
                                         </ul>
                                     </div>
                                     {% endif %}
                                 </div>
+                                
+                                <p class="mb-0 mt-3" style="line-height: 1.8;">{{ feedback.message }}</p>
                             </div>
-                            <p class="card-text">{{ feedback.message|linebreaks }}</p>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
-            </div>
             {% else %}
-            <div class="text-center py-5">
-                <i class="bi bi-chat-dots text-muted" style="font-size: 4rem;"></i>
-                <h3 class="text-muted mt-3">Aucun avis pour le moment</h3>
-                <p class="text-muted">Soyez le premier à laisser votre avis sur notre plateforme !</p>
-                <a href="{% url 'feedback_create' %}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Laisser un avis
-                </a>
-            </div>
-            {% endif %}
-
-            <!-- Call to action -->
-            <div class="text-center mt-5">
-                <div class="card bg-primary text-white">
-                    <div class="card-body">
-                        <h4 class="card-title">
-                            <i class="bi bi-heart"></i> Votre avis nous intéresse !
-                        </h4>
-                        <p class="card-text">
-                            Partagez votre expérience avec MultiLearn et aidez d'autres utilisateurs à découvrir notre plateforme.
-                        </p>
-                        <a href="{% url 'feedback_create' %}" class="btn btn-light btn-lg">
-                            <i class="bi bi-pencil"></i> Écrire un avis
-                        </a>
+                <!-- État vide -->
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-chat-dots text-white" style="font-size: 3.5rem;"></i>
                     </div>
+                    <h3 class="fw-bold mb-3">Aucun avis pour le moment</h3>
+                    <p class="text-muted mb-4">
+                        Soyez le premier à partager votre expérience sur notre plateforme !
+                    </p>
+                    <a href="{% url 'feedback_create' %}" class="btn btn-primary btn-lg px-5 py-3 rounded-pill">
+                        <i class="bi bi-plus-circle me-2"></i> Laisser un avis
+                    </a>
                 </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Call to action -->
+    {% if feedbacks %}
+    <div class="row mt-5">
+        <div class="col-lg-10 mx-auto">
+            <div class="cta-card text-center">
+                <i class="bi bi-heart-fill mb-3" style="font-size: 3rem;"></i>
+                <h3 class="fw-bold mb-3">Votre avis nous intéresse !</h3>
+                <p class="mb-4 opacity-90">
+                    Partagez votre expérience avec MultiLearn et aidez d'autres utilisateurs<br>
+                    à découvrir notre plateforme d'apprentissage.
+                </p>
+                <a href="{% url 'feedback_create' %}" class="btn btn-light btn-lg px-5 py-3 rounded-pill shadow">
+                    <i class="bi bi-pencil-square me-2"></i> Écrire un avis
+                </a>
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 {% endblock %}

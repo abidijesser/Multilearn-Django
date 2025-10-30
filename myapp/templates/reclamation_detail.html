@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+
+{% block title %}Détail Réclamation - MultiLearn{% endblock %}
+
+{% block content %}
+<style>
+    .detail-card {
+        border: none;
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+    
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e0e0e0;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-bottom: 20px;
+    }
+    
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -24px;
+        top: 5px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        border: 3px solid #007bff;
+    }
+    
+    .timeline-item.active::before {
+        background: #007bff;
+    }
+</style>
+
+<div class="container my-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <!-- Bouton retour -->
+            <a href="{% url 'reclamation_list' %}" class="btn btn-outline-secondary mb-4">
+                <i class="bi bi-arrow-left me-2"></i> Retour à mes réclamations
+            </a>
+            
+            <!-- Carte principale -->
+            <div class="detail-card card">
+                <div class="card-header bg-danger text-white p-4">
+                    <h3 class="mb-0">
+                        <i class="bi bi-file-earmark-text me-2"></i>
+                        {{ reclamation.sujet }}
+                    </h3>
+                </div>
+                
+                <div class="card-body p-4">
+                    <!-- Informations principales -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <p class="mb-2">
+                                <strong><i class="bi bi-tag me-2"></i> Type:</strong>
+                                <span class="badge bg-secondary ms-2">{{ reclamation.get_type_reclamation_display }}</span>
+                            </p>
+                            <p class="mb-2">
+                                <strong><i class="bi bi-calendar3 me-2"></i> Date:</strong>
+                                {{ reclamation.created_at|date:"d F Y à H:i" }}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-2">
+                                <strong><i class="bi bi-info-circle me-2"></i> Statut:</strong>
+                                {% if reclamation.statut == 'EN_ATTENTE' %}
+                                    <span class="badge bg-warning text-dark ms-2">{{ reclamation.get_statut_display }}</span>
+                                {% elif reclamation.statut == 'EN_COURS' %}
+                                    <span class="badge bg-info ms-2">{{ reclamation.get_statut_display }}</span>
+                                {% elif reclamation.statut == 'RESOLUE' %}
+                                    <span class="badge bg-success ms-2">{{ reclamation.get_statut_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger ms-2">{{ reclamation.get_statut_display }}</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-2">
+                                <strong><i class="bi bi-flag me-2"></i> Priorité:</strong>
+                                <span class="badge bg-secondary ms-2">{{ reclamation.get_priorite_display }}</span>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Description -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold mb-3">
+                            <i class="bi bi-file-text me-2"></i> Description
+                        </h5>
+                        <div class="p-3 bg-light rounded">
+                            {{ reclamation.description|linebreaks }}
+                        </div>
+                    </div>
+                    
+                    <!-- Réponse admin si disponible -->
+                    {% if reclamation.reponse_admin %}
+                    <div class="mb-4">
+                        <h5 class="fw-bold mb-3">
+                            <i class="bi bi-reply-fill me-2"></i> Réponse de l'administration
+                        </h5>
+                        <div class="alert alert-info">
+                            <p class="mb-2">
+                                <strong>
+                                    <i class="bi bi-person-badge me-2"></i>
+                                    {{ reclamation.traite_par.get_full_name|default:reclamation.traite_par.username }}
+                                </strong>
+                            </p>
+                            <p class="mb-0">{{ reclamation.reponse_admin|linebreaks }}</p>
+                            {% if reclamation.date_resolution %}
+                            <hr>
+                            <small class="text-muted">
+                                <i class="bi bi-clock me-1"></i>
+                                Résolu le {{ reclamation.date_resolution|date:"d F Y à H:i" }}
+                            </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Timeline -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold mb-3">
+                            <i class="bi bi-clock-history me-2"></i> Historique
+                        </h5>
+                        <div class="timeline">
+                            <div class="timeline-item active">
+                                <strong>Réclamation créée</strong>
+                                <br>
+                                <small class="text-muted">{{ reclamation.created_at|date:"d F Y à H:i" }}</small>
+                            </div>
+                            
+                            {% if reclamation.statut != 'EN_ATTENTE' %}
+                            <div class="timeline-item active">
+                                <strong>Prise en charge</strong>
+                                <br>
+                                <small class="text-muted">
+                                    Par {{ reclamation.traite_par.get_full_name|default:reclamation.traite_par.username }}
+                                </small>
+                            </div>
+                            {% endif %}
+                            
+                            {% if reclamation.date_resolution %}
+                            <div class="timeline-item active">
+                                <strong>
+                                    {% if reclamation.statut == 'RESOLUE' %}
+                                        Réclamation résolue
+                                    {% else %}
+                                        Réclamation rejetée
+                                    {% endif %}
+                                </strong>
+                                <br>
+                                <small class="text-muted">{{ reclamation.date_resolution|date:"d F Y à H:i" }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

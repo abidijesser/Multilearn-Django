@@ -4,8 +4,27 @@
 
 {% block extra_css %}
 <style>
+    .feedback-create-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 60px 0;
+        color: white;
+        margin-bottom: 50px;
+    }
+    
+    .form-card {
+        border: none;
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .form-card .card-body {
+        padding: 40px;
+    }
+    
     .char-counter {
         transition: all 0.3s ease;
+        font-weight: 500;
     }
     
     .char-counter.valid {
@@ -22,6 +41,8 @@
     
     #char-progress {
         transition: all 0.3s ease;
+        height: 6px;
+        border-radius: 10px;
     }
     
     .submit-btn-disabled {
@@ -35,67 +56,74 @@
     }
     
     .message-textarea {
-        transition: border-color 0.3s ease;
+        transition: all 0.3s ease;
+        border-radius: 15px;
+        padding: 20px;
+        font-size: 1rem;
+        border: 2px solid #e0e0e0;
+    }
+    
+    .message-textarea:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.15);
     }
     
     .message-textarea.valid {
         border-color: #28a745;
-        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
     }
     
     .message-textarea.invalid {
         border-color: #dc3545;
-        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 10px;
+    }
+    
+    .tips-card {
+        border: none;
+        border-radius: 15px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    
+    .user-info-alert {
+        border-radius: 15px;
+        border: none;
+        background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%);
+        border-left: 4px solid #00acc1;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <!-- En-tête -->
-            <div class="text-center mb-5">
-                <h1 class="display-4 fw-bold text-primary">
-                    <i class="bi bi-chat-heart"></i> Laisser un avis
-                </h1>
-                <p class="lead text-muted">
+<div class="feedback-create-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8 mx-auto text-center">
+                <div class="mb-3">
+                    <i class="bi bi-pencil-square" style="font-size: 4rem;"></i>
+                </div>
+                <h1 class="display-4 fw-bold mb-3">Laisser un avis</h1>
+                <p class="lead mb-0">
                     Partagez votre expérience avec MultiLearn et aidez d'autres utilisateurs
                 </p>
             </div>
+        </div>
+    </div>
+</div>
 
+<div class="container mb-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
             <!-- Formulaire -->
-            <div class="card">
-                <div class="card-body p-4">
+            <div class="form-card card">
+                <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
                         
-                        {% if user.is_authenticated %}
-                        <!-- Utilisateur connecté - afficher ses informations -->
-                        <div class="alert alert-info">
-                            <i class="bi bi-person-check"></i>
-                            <strong>Connecté en tant que :</strong> {{ user.get_full_name|default:user.username }} ({{ user.email }})
-                        </div>
-                        {% else %}
-                        <!-- Utilisateur anonyme - demander les informations -->
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="username" class="form-label">
-                                    <i class="bi bi-person"></i> Nom d'utilisateur *
-                                </label>
-                                <input type="text" class="form-control" id="username" name="username" 
-                                       placeholder="Votre nom d'utilisateur" required>
-                            </div>
-                            
-                            <div class="col-md-6 mb-3">
-                                <label for="email" class="form-label">
-                                    <i class="bi bi-envelope"></i> Adresse email *
-                                </label>
-                                <input type="email" class="form-control" id="email" name="email" 
-                                       placeholder="votre@email.com" required>
-                            </div>
-                        </div>
-                        {% endif %}
+                        
 
                         <div class="mb-4">
                             <label for="message" class="form-label">
@@ -106,7 +134,7 @@
                                       required minlength="3"></textarea>
                             <div class="form-text">
                                 <i class="bi bi-info-circle"></i>
-                                Votre avis sera publié après modération par notre équipe.
+                                Merci de ne pas utiliser de mots inappropriés dans votre commentaire.
                             </div>
                             <!-- Compteur de caractères en temps réel -->
                             <div class="mt-2">
@@ -115,6 +143,15 @@
                                 </small>
                                 <div class="progress mt-1" style="height: 4px;">
                                     <div id="char-progress" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Indicateur de vérification AI -->
+                            <div id="ai-checking" class="mt-2" style="display: none;">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-robot me-2"></i>
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    <strong>Vérification du contenu avec l'IA...</strong>
                                 </div>
                             </div>
                             
@@ -127,42 +164,30 @@
                                 </div>
                                 <div id="content-suggestions" class="mt-2"></div>
                             </div>
+                            
+                            <!-- Validation réussie -->
+                            <div id="content-valid" class="mt-2" style="display: none;">
+                                <div class="alert alert-success">
+                                    <i class="bi bi-check-circle-fill me-2"></i>
+                                    <strong>Contenu validé !</strong> Votre message respecte nos règles.
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Informations sur la modération -->
-                        <div class="alert alert-info">
-                            <i class="bi bi-shield-check"></i>
-                            <strong>Modération :</strong> Tous les avis sont modérés avant publication pour maintenir la qualité et la pertinence des commentaires.
-                        </div>
 
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <a href="{% url 'feedback_list' %}" class="btn btn-outline-secondary me-md-2">
-                                <i class="bi bi-arrow-left"></i> Retour aux avis
+                        <div class="d-flex gap-3 justify-content-end mt-4">
+                            <a href="{% url 'feedback_list' %}" class="btn btn-outline-secondary btn-lg px-4 rounded-pill">
+                                <i class="bi bi-arrow-left me-2"></i> Retour
                             </a>
-                            <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
-                                <i class="bi bi-send"></i> Publier mon avis
+                            <button type="submit" class="btn btn-primary btn-lg px-5 rounded-pill" id="submit-btn" disabled>
+                                <i class="bi bi-send-fill me-2"></i> Publier mon avis
                             </button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            <!-- Conseils pour un bon avis -->
-            <div class="mt-4">
-                <div class="card bg-light">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="bi bi-lightbulb"></i> Conseils pour un bon avis
-                        </h5>
-                        <ul class="mb-0">
-                            <li><strong>Soyez constructif :</strong> Partagez votre expérience de manière positive et constructive</li>
-                            <li><strong>Soyez spécifique :</strong> Mentionnez les fonctionnalités que vous appréciez ou les améliorations souhaitées</li>
-                            <li><strong>Soyez respectueux :</strong> Utilisez un langage respectueux et professionnel</li>
-                            <li><strong>Soyez honnête :</strong> Partagez votre expérience réelle avec la plateforme</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -183,12 +208,19 @@ document.addEventListener('DOMContentLoaded', function() {
     function checkContent(text) {
         if (text.length < 3) {
             hideContentWarning();
+            hideAIChecking();
+            hideContentValid();
             return;
         }
         
         // Délai pour éviter trop d'appels API
         clearTimeout(contentCheckTimeout);
         contentCheckTimeout = setTimeout(() => {
+            // Afficher l'indicateur de chargement
+            showAIChecking();
+            hideContentWarning();
+            hideContentValid();
+            
             fetch('{% url "check_content_api" %}', {
                 method: 'POST',
                 headers: {
@@ -199,10 +231,14 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => response.json())
             .then(data => {
+                hideAIChecking();
+                
                 if (data.is_appropriate) {
                     hideContentWarning();
+                    showContentValid();
                     isContentAppropriate = true;
                 } else {
+                    hideContentValid();
                     showContentWarning(data);
                     isContentAppropriate = false;
                 }
@@ -210,8 +246,32 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('Erreur lors de la vérification du contenu:', error);
+                hideAIChecking();
+                // En cas d'erreur, on permet quand même la soumission
+                isContentAppropriate = true;
+                updateSubmitButton();
             });
-        }, 1000); // Attendre 1 seconde après la dernière frappe
+        }, 1500); // Attendre 1.5 secondes après la dernière frappe
+    }
+    
+    // Fonction pour afficher l'indicateur AI
+    function showAIChecking() {
+        document.getElementById('ai-checking').style.display = 'block';
+    }
+    
+    // Fonction pour masquer l'indicateur AI
+    function hideAIChecking() {
+        document.getElementById('ai-checking').style.display = 'none';
+    }
+    
+    // Fonction pour afficher la validation
+    function showContentValid() {
+        document.getElementById('content-valid').style.display = 'block';
+    }
+    
+    // Fonction pour masquer la validation
+    function hideContentValid() {
+        document.getElementById('content-valid').style.display = 'none';
     }
     
     // Fonction pour afficher l'avertissement de contenu
@@ -222,15 +282,26 @@ document.addEventListener('DOMContentLoaded', function() {
         
         messageSpan.textContent = data.message;
         
-        // Afficher les suggestions
-        if (data.suggestions && data.suggestions.length > 0) {
-            suggestionsDiv.innerHTML = '<strong>Suggestions :</strong><ul class="mb-0 mt-1">' +
-                data.suggestions.map(suggestion => `<li>${suggestion}</li>`).join('') +
-                '</ul>';
-        } else {
-            suggestionsDiv.innerHTML = '';
+        // Afficher les problèmes détectés
+        let issuesHtml = '';
+        if (data.issues && data.issues.length > 0) {
+            issuesHtml += '<div class="mt-2"><strong>Problèmes détectés :</strong><ul class="mb-0 mt-1">';
+            data.issues.forEach(issue => {
+                issuesHtml += `<li>${issue}</li>`;
+            });
+            issuesHtml += '</ul></div>';
         }
         
+        // Afficher les suggestions de l'AI
+        if (data.suggestions && data.suggestions.length > 0) {
+            issuesHtml += '<div class="mt-2 alert alert-warning"><strong><i class="bi bi-lightbulb me-1"></i> Suggestions d\'amélioration :</strong><ul class="mb-0 mt-1">';
+            data.suggestions.forEach(suggestion => {
+                issuesHtml += `<li>${suggestion}</li>`;
+            });
+            issuesHtml += '</ul></div>';
+        }
+        
+        suggestionsDiv.innerHTML = issuesHtml;
         warningDiv.style.display = 'block';
     }
     

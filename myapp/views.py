@@ -6,7 +6,7 @@ from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from django import forms
 from django.http import JsonResponse
-from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Event, Participation, EventFeedback, PlatformFeedback
+from .models import User, Course, Enrollment, Quiz, Question, QuizResult, Event, Participation, EventFeedback, PlatformFeedback, Reclamation
 import json
 from django.views.decorators.csrf import csrf_exempt
 from transformers import pipeline
@@ -1550,3 +1550,201 @@ def submit_feedback(request, event_id):
         return JsonResponse({'status': 'success', 'message': 'Merci pour votre avis !'})
 
     return JsonResponse({'status': 'error', 'message': 'Méthode non autorisée.'}, status=405)
+
+
+# ============= GESTION DES RÉCLAMATIONS =============
+
+@login_required
+def reclamation_create(request):
+    """Créer une nouvelle réclamation (étudiants uniquement)"""
+    if request.method == 'POST':
+        sujet = request.POST.get('sujet')
+        type_reclamation = request.POST.get('type_reclamation')
+        description = request.POST.get('description')
+        
+        # Validation
+        if not all([sujet, type_reclamation, description]):
+            messages.error(request, 'Veuillez remplir tous les champs.')
+            return render(request, 'reclamation_create.html')
+        
+        if len(description.strip()) < 10:
+            messages.error(request, 'La description doit contenir au moins 10 caractères.')
+            return render(request, 'reclamation_create.html')
+        
+        # Créer la réclamation
+        reclamation = Reclamation.objects.create(
+            student=request.user,
+            sujet=sujet,
+            type_reclamation=type_reclamation,
+            description=description,
+            statut='EN_ATTENTE'
+        )
+        
+        messages.success(request, 'Votre réclamation a été soumise avec succès. Nous la traiterons dans les plus brefs délais.')
+        return redirect('reclamation_detail', reclamation_id=reclamation.id)
+    
+    return render(request, 'reclamation_create.html')
+
+
+@login_required
+def reclamation_list(request):
+    """Liste des réclamations de l'étudiant connecté"""
+    reclamations = Reclamation.objects.filter(student=request.user).order_by('-created_at')
+    
+    # Filtres
+    statut_filter = request.GET.get('statut')
+    type_filter = request.GET.get('type')
+    
+    if statut_filter:
+        reclamations = reclamations.filter(statut=statut_filter)
+    
+    if type_filter:
+        reclamations = reclamations.filter(type_reclamation=type_filter)
+    
+    # Statistiques
+    stats = {
+        'total': reclamations.count(),
+        'en_attente': reclamations.filter(statut='EN_ATTENTE').count(),
+        'en_cours': reclamations.filter(statut='EN_COURS').count(),
+        'resolues': reclamations.filter(statut='RESOLUE').count(),
+        'rejetees': reclamations.filter(statut='REJETEE').count(),
+    }
+    
+    context = {
+        'reclamations': reclamations,
+        'stats': stats,
+    }
+    return render(request, 'reclamation_list.html', context)
+
+
+@login_required
+def reclamation_detail(request, reclamation_id):
+    """Détail d'une réclamation"""
+    reclamation = get_object_or_404(Reclamation, id=reclamation_id)
+    
+    # Vérifier que l'utilisateur a le droit de voir cette réclamation
+    if reclamation.student != request.user and request.user.role != 'ADMIN':
+        messages.error(request, 'Vous n\'avez pas accès à cette réclamation.')
+        return redirect('reclamation_list')
+    
+    context = {
+        'reclamation': reclamation,
+    }
+    return render(request, 'reclamation_detail.html', context)
+
+
+@login_required
+def reclamation_admin(request):
+    """Gestion des réclamations pour les administrateurs"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    reclamations = Reclamation.objects.all().order_by('-created_at')
+    
+    # Filtres
+    statut_filter = request.GET.get('statut')
+    type_filter = request.GET.get('type')
+    priorite_filter = request.GET.get('priorite')
+    
+    if statut_filter:
+        reclamations = reclamations.filter(statut=statut_filter)
+    
+    if type_filter:
+        reclamations = reclamations.filter(type_reclamation=type_filter)
+    
+    if priorite_filter:
+        reclamations = reclamations.filter(priorite=priorite_filter)
+    
+    # Statistiques
+    stats = {
+        'total': Reclamation.objects.count(),
+        'en_attente': Reclamation.objects.filter(statut='EN_ATTENTE').count(),
+        'en_cours': Reclamation.objects.filter(statut='EN_COURS').count(),
+        'resolues': Reclamation.objects.filter(statut='RESOLUE').count(),
+        'rejetees': Reclamation.objects.filter(statut='REJETEE').count(),
+    }
+    
+    context = {
+        'reclamations': reclamations,
+        'stats': stats,
+    }
+    return render(request, 'reclamation_admin.html', context)
+
+
+@login_required
+def reclamation_traiter(request, reclamation_id):
+    """Marquer une réclamation comme en cours de traitement"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    reclamation = get_object_or_404(Reclamation, id=reclamation_id)
+    reclamation.marquer_en_cours(request.user)
+    
+    messages.success(request, 'La réclamation est maintenant en cours de traitement.')
+    return redirect('reclamation_admin')
+
+
+@login_required
+def reclamation_resoudre(request, reclamation_id):
+    """Résoudre une réclamation"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    reclamation = get_object_or_404(Reclamation, id=reclamation_id)
+    
+    if request.method == 'POST':
+        reponse = request.POST.get('reponse')
+        
+        if not reponse:
+            messages.error(request, 'Veuillez fournir une réponse.')
+            return redirect('reclamation_admin')
+        
+        reclamation.resoudre(request.user, reponse)
+        messages.success(request, 'La réclamation a été résolue avec succès.')
+        return redirect('reclamation_admin')
+    
+    return render(request, 'reclamation_resoudre.html', {'reclamation': reclamation})
+
+
+@login_required
+def reclamation_rejeter(request, reclamation_id):
+    """Rejeter une réclamation"""
+    if request.user.role != 'ADMIN':
+        messages.error(request, 'Accès non autorisé.')
+        return redirect('dashboard')
+    
+    reclamation = get_object_or_404(Reclamation, id=reclamation_id)
+    
+    if request.method == 'POST':
+        raison = request.POST.get('raison')
+        
+        if not raison:
+            messages.error(request, 'Veuillez fournir une raison.')
+            return redirect('reclamation_admin')
+        
+        reclamation.rejeter(request.user, raison)
+        messages.success(request, 'La réclamation a été rejetée.')
+        return redirect('reclamation_admin')
+    
+    return render(request, 'reclamation_rejeter.html', {'reclamation': reclamation})
+
+
+@login_required
+def reclamation_update_priorite(request, reclamation_id):
+    """Mettre à jour la priorité d'une réclamation"""
+    if request.user.role != 'ADMIN':
+        return JsonResponse({'error': 'Non autorisé'}, status=403)
+    
+    reclamation = get_object_or_404(Reclamation, id=reclamation_id)
+    
+    if request.method == 'POST':
+        priorite = request.POST.get('priorite')
+        if priorite in ['BASSE', 'MOYENNE', 'HAUTE']:
+            reclamation.priorite = priorite
+            reclamation.save()
+            return JsonResponse({'status': 'success', 'message': 'Priorité mise à jour'})
+    
+    return JsonResponse({'error': 'Méthode non autorisée'}, status=405)

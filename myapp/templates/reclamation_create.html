@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block title %}Nouvelle Réclamation - MultiLearn{% endblock %}
+
+{% block content %}
+<style>
+    .reclamation-header {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        padding: 60px 0;
+        color: white;
+        margin-bottom: 50px;
+    }
+    
+    .form-card {
+        border: none;
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    
+    .form-card .card-body {
+        padding: 40px;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 10px;
+    }
+    
+    .form-control, .form-select {
+        border-radius: 10px;
+        border: 2px solid #e0e0e0;
+        padding: 12px 15px;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #f5576c;
+        box-shadow: 0 0 0 0.25rem rgba(245, 87, 108, 0.15);
+    }
+    
+    textarea.form-control {
+        min-height: 150px;
+    }
+</style>
+
+<div class="reclamation-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8 mx-auto text-center">
+                <div class="mb-3">
+                    <i class="bi bi-exclamation-circle-fill" style="font-size: 4rem;"></i>
+                </div>
+                <h1 class="display-4 fw-bold mb-3">Nouvelle Réclamation</h1>
+                <p class="lead mb-0">
+                    Décrivez votre problème et nous le traiterons dans les plus brefs délais
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mb-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="form-card card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Sujet -->
+                        <div class="mb-4">
+                            <label for="sujet" class="form-label">
+                                <i class="bi bi-card-heading me-2"></i> Sujet *
+                            </label>
+                            <input type="text" class="form-control" id="sujet" name="sujet" 
+                                   placeholder="Ex: Problème d'accès au cours de Python" required maxlength="255">
+                        </div>
+                        
+                        <!-- Type de réclamation -->
+                        <div class="mb-4">
+                            <label for="type_reclamation" class="form-label">
+                                <i class="bi bi-tags me-2"></i> Type de réclamation *
+                            </label>
+                            <select class="form-select" id="type_reclamation" name="type_reclamation" required>
+                                <option value="">-- Sélectionnez un type --</option>
+                                <option value="COURS">Cours</option>
+                                <option value="QUIZ">Quiz</option>
+                                <option value="ENSEIGNANT">Enseignant</option>
+                                <option value="BUG_TECHNIQUE">Bug Technique</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Description -->
+                        <div class="mb-4">
+                            <label for="description" class="form-label">
+                                <i class="bi bi-file-text me-2"></i> Description détaillée *
+                            </label>
+                            <textarea class="form-control" id="description" name="description" rows="6" 
+                                      placeholder="Décrivez votre problème en détail..." required minlength="10"></textarea>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Minimum 10 caractères. Soyez le plus précis possible pour nous aider à résoudre votre problème.
+                            </div>
+                        </div>
+                        
+                        <!-- Boutons -->
+                        <div class="d-flex gap-3 justify-content-end mt-4">
+                            <a href="{% url 'reclamation_list' %}" class="btn btn-outline-secondary btn-lg px-4 rounded-pill">
+                                <i class="bi bi-arrow-left me-2"></i> Retour
+                            </a>
+                            <button type="submit" class="btn btn-danger btn-lg px-5 rounded-pill">
+                                <i class="bi bi-send-fill me-2"></i> Soumettre la réclamation
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Info box -->
+            <div class="alert alert-info mt-4">
+                <h5 class="alert-heading">
+                    <i class="bi bi-info-circle-fill me-2"></i> À savoir
+                </h5>
+                <ul class="mb-0">
+                    <li>Votre réclamation sera traitée dans les <strong>24-48 heures</strong></li>
+                    <li>Vous recevrez une notification dès qu'un administrateur prendra en charge votre demande</li>
+                    <li>Vous pouvez suivre l'état de votre réclamation dans la section "Mes réclamations"</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
